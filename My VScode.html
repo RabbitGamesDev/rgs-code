@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <!-- Favicon SVG oficial de RGS.Code -->
+    <link rel="icon" type="image/svg+xml" href="logo.svg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RGS Labs Mobile IDE Pro++ P2P</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        vsc: {
+                            bg: '#1e1e1e',
+                            sidebar: '#252526',
+                            activity: '#333333',
+                            active: '#2a2d2e',
+                            inactive: '#2d2d2d',
+                            border: '#3f3f46',
+                            text: '#cccccc',
+                            accent: '#007acc',
+                            statusbar: '#007acc'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- CodeMirror Estilos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/monokai.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/nord.min.css">
+    
+    <!-- Marked.js para Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <!-- PeerJS para WebRTC P2P Directo PC ⇄ Móvil -->
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+
+    <style>
+        .CodeMirror {
+            height: 100% !important;
+            font-family: 'Consolas', 'Courier New', Courier, monospace;
+            font-size: 14px;
+            background-color: #1e1e1e !important;
+            color: #d4d4d4 !important;
+        }
+        .CodeMirror-gutters {
+            background-color: #1e1e1e !important;
+            border-right: 1px solid #333333 !important;
+            color: #858585;
+        }
+        .CodeMirror-activeline-background { background: #2a2d2e !important; }
+        
+        .CodeMirror-indent-guide {
+            border-left: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: #1e1e1e; }
+        ::-webkit-scrollbar-thumb { background: #424242; border-radius: 3px; }
+        #context-menu {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+        }
+        .resizer-x {
+            width: 5px;
+            cursor: ew-resize;
+            background: transparent;
+            z-index: 20;
+        }
+        .resizer-x:hover, .resizer-x.active {
+            background: #007acc;
+        }
+        .resizer-y {
+            height: 5px;
+            cursor: ns-resize;
+            background: transparent;
+            z-index: 20;
+        }
+        .resizer-y:hover, .resizer-y.active {
+            background: #007acc;
+        }
+    </style>
+</head>
+<body id="app-body" class="bg-vsc-bg text-vsc-text h-screen flex flex-col overflow-hidden select-none font-sans" onclick="hideContextMenu()">
+
+    <!-- Menú Superior (File y Accesos) -->
+    <header class="bg-vsc-sidebar border-b border-vsc-border h-8 hidden sm:flex items-center px-3 space-x-3 text-xs text-gray-300 shrink-0">
+        <!-- Menú File Desplegable -->
+        <div class="relative group">
+            <span class="hover:bg-vsc-active px-2 py-1 rounded cursor-pointer flex items-center space-x-1 font-bold text-white">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                <span>File</span>
+            </span>
+            <div class="absolute left-0 top-full mt-1 w-56 bg-vsc-sidebar border border-vsc-border shadow-2xl rounded py-1 hidden group-hover:block z-50 text-gray-200">
+                <div onclick="openNewModal('file')" class="px-3 py-1.5 hover:bg-vsc-active cursor-pointer flex items-center justify-between">
+                    <span>Nuevo Archivo...</span>
+                    <span class="text-[10px] text-gray-500">Ctrl+N</span>
+                </div>
+                <div onclick="openNewModal('folder')" class="px-3 py-1.5 hover:bg-vsc-active cursor-pointer flex items-center justify-between">
+                    <span>Nueva Carpeta...</span>
+                </div>
+                <div class="border-t border-vsc-border my-1"></div>
+                <label class="px-3 py-1.5 hover:bg-vsc-active cursor-pointer flex items-center justify-between">
+                    <span>Abrir Archivo(s)...</span>
+                    <input type="file" id="file-picker-input" multiple class="hidden" onchange="handleFileOpen(event)">
+                </label>
+                <label class="px-3 py-1.5 hover:bg-vsc-active cursor-pointer flex items-center justify-between">
+                    <span>Abrir Carpeta (Workspace)...</span>
+                    <input type="file" id="folder-picker-input" webkitdirectory directory multiple class="hidden" onchange="handleFolderOpen(event)">
+                </label>
+                <div class="border-t border-vsc-border my-1"></div>
+                <div onclick="saveFileNative()" class="px-3 py-1.5 hover:bg-vsc-active cursor-pointer flex items-center justify-between">
+                    <span>Guardar en Archivo Nativo</span>
+                    <span class="text-[10px] text-gray-500">Ctrl+S</span>
+                </div>
+                <div onclick="duplicateCurrentFile()" class="px-3 py-1.5 hover:bg-vsc-active cursor-pointer flex items-center justify-between">
+                    <span>Duplicar Proyecto / Archivo</span>
+                </div>
+                <div onclick="exportProjectZip()" class="px-3 py-1.5 hover:bg-vsc-active cursor-pointer flex items-center justify-between">
+                    <span>Exportar Proyecto JSON</span>
+                </div>
+            </div>
+        </div>
+
+        <span class="hover:bg-vsc-active px-2 py-1 rounded cursor-pointer flex items-center space-x-1.5" onclick="openVsCodeSyncModal()">
+            <svg class="w-3.5 h-3.5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            <span>Sincronizar VS Code PC</span>
+        </span>
+        <span class="hover:bg-vsc-active px-2 py-1 rounded cursor-pointer flex items-center space-x-1.5" onclick="toggleSidebar()">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+            <span>Explorador</span>
+        </span>
+        <span class="hover:bg-vsc-active px-2 py-1 rounded cursor-pointer flex items-center space-x-1.5" onclick="toggleTerminal()">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            <span>Terminal</span>
+        </span>
+        <span class="hover:bg-vsc-active px-2 py-1 rounded cursor-pointer text-blue-400 font-bold flex items-center space-x-1.5" onclick="toggleLivePreview()">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+            <span>Preview Real</span>
+        </span>
+        <span class="hover:bg-vsc-active px-2 py-1 rounded cursor-pointer text-green-400 font-bold flex items-center space-x-1.5" onclick="runProject()">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span>Ejecutar Web</span>
+        </span>
+        <span class="text-gray-500">| RGS Labs IDE Pro++ P2P[cite: 5]</span>
+    </header>
+
+    <!-- Pantalla Principal -->
+    <div class="flex-1 flex overflow-hidden relative">
+        
+        <!-- Barra Lateral de Iconos SVG -->
+        <aside class="w-12 bg-vsc-activity flex flex-col items-center py-2 justify-between shrink-0 border-r border-vsc-border/40 z-10">
+            <div class="flex flex-col space-y-4 items-center w-full">
+                <button onclick="switchView('explorer')" id="btn-explorer" title="Explorador" class="w-full h-10 flex items-center justify-center text-white border-l-2 border-vsc-accent bg-vsc-bg/40">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                </button>
+                <button onclick="switchView('settings')" id="btn-settings" title="Configuración" class="w-full h-10 flex items-center justify-center text-gray-400 hover:text-white transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                </button>
+                <button onclick="toggleLivePreview()" title="Preview" class="w-full h-10 flex items-center justify-center text-gray-400 hover:text-white transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                </button>
+            </div>
+            <div class="flex flex-col space-y-2 items-center w-full">
+                <button onclick="saveFileNative()" title="Guardar en Archivo" class="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Panel Izquierdo Dimensional (Explorador / Ajustes) -->
+        <div id="left-sidebar" class="w-64 bg-vsc-sidebar flex flex-col border-r border-vsc-border shrink-0 text-xs transition-all duration-75 relative">
+            <!-- Explorador de Archivos -->
+            <div id="view-explorer" class="flex flex-col h-full">
+                <div class="px-3 py-2.5 text-[11px] font-bold tracking-wider text-gray-400 uppercase flex justify-between items-center border-b border-vsc-border/50">
+                    <span class="truncate">WORKSPACE RGS</span>
+                    <div class="space-x-1 shrink-0 flex items-center">
+                        <button onclick="openNewModal('file')" class="text-gray-300 hover:text-white p-1" title="Nuevo Archivo">
+                            <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        </button>
+                        <button onclick="openNewModal('folder')" class="text-gray-300 hover:text-white p-1" title="Nueva Carpeta">
+                            <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path></svg>
+                        </button>
+                    </div>
+                </div>
+                <div id="file-tree" class="flex-1 overflow-y-auto py-1 px-1 space-y-1"></div>
+            </div>
+
+            <!-- Ajustes Mejorados -->
+            <div id="view-settings" class="flex flex-col h-full p-3 space-y-4 hidden overflow-y-auto">
+                <div class="text-sm font-bold text-white border-b border-vsc-border pb-1">Ajustes del IDE</div>
+                
+                <div>
+                    <label class="text-gray-400 block mb-1">Tamaño de fuente:</label>
+                    <select id="setting-fontsize" onchange="changeFontSize(this.value)" class="w-full bg-vsc-inactive text-white px-2 py-1.5 rounded border border-vsc-border">
+                        <option value="12px">Chico (12px)</option>
+                        <option value="14px" selected>Normal (14px)</option>
+                        <option value="16px">Grande (16px)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="text-gray-400 block mb-1">Tema del Editor:</label>
+                    <select id="setting-theme" onchange="changeEditorTheme(this.value)" class="w-full bg-vsc-inactive text-white px-2 py-1.5 rounded border border-vsc-border">
+                        <option value="material-darker" selected>Material Darker (VSC Pro)</option>
+                        <option value="dracula">Dracula Pro</option>
+                        <option value="monokai">Monokai Classic</option>
+                        <option value="nord">Nord Frost</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="text-gray-400 block mb-1">Líneas de Sangría:</label>
+                    <button onclick="toggleIndentGuides()" id="btn-indent-guides" class="w-full bg-vsc-inactive hover:bg-vsc-active text-green-400 py-1.5 rounded border border-vsc-border text-xs">Activadas (ON)</button>
+                </div>
+
+                <div class="pt-4 border-t border-vsc-border space-y-2">
+                    <button onclick="exportProjectZip()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded transition text-xs font-medium flex items-center justify-center space-x-1.5">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        <span>Exportar Proyecto (JSON)</span>
+                    </button>
+                    <button onclick="resetStorage()" class="w-full bg-red-600/80 hover:bg-red-600 text-white py-2 rounded transition text-xs font-medium flex items-center justify-center space-x-1.5">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        <span>Restaurar Fábrica</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Resizer Izquierdo -->
+            <div id="resizer-left" class="resizer-x absolute right-0 top-0 bottom-0" onmousedown="initResize(event, 'left')"></div>
+        </div>
+
+        <!-- Área Central (Editor + Preview + Terminal) -->
+        <div class="flex-1 flex flex-col h-full overflow-hidden bg-vsc-bg relative">
+            
+            <!-- Pestañas Superiores -->
+            <div class="bg-vsc-sidebar flex items-center overflow-x-auto border-b border-vsc-border shrink-0 h-9" id="tabs-bar"></div>
+
+            <!-- Contenedor de Edición y Previsualización con Resizer -->
+            <div class="flex-1 flex relative overflow-hidden" id="editor-preview-container">
+                <div id="editor-pane" class="flex-1 flex flex-col relative overflow-hidden">
+                    <textarea id="code-editor"></textarea>
+                </div>
+
+                <!-- Resizer Preview -->
+                <div id="resizer-preview" class="resizer-x hidden" onmousedown="initResize(event, 'preview')"></div>
+
+                <div id="live-preview-pane" class="w-1/2 bg-[#1e1e1e] border-l border-vsc-border flex flex-col hidden relative">
+                    <div class="bg-vsc-sidebar px-3 py-1.5 text-xs text-gray-400 border-b border-vsc-border flex justify-between items-center">
+                        <span class="flex items-center space-x-1.5">
+                            <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                            <span>Vista Previa en Tiempo Real (Responsive)</span>
+                        </span>
+                        <div class="flex items-center space-x-2">
+                            <button onclick="setPreviewSize('mobile')" class="px-1.5 py-0.5 bg-vsc-inactive rounded text-[10px] hover:bg-vsc-active">Móvil</button>
+                            <button onclick="setPreviewSize('full')" class="px-1.5 py-0.5 bg-vsc-inactive rounded text-[10px] hover:bg-vsc-active">Full</button>
+                            <button onclick="toggleLivePreview()" class="text-xs hover:text-white p-1">✕</button>
+                        </div>
+                    </div>
+                    <div id="live-preview-content" class="flex-1 p-2 overflow-y-auto bg-white text-black text-sm flex justify-center items-center"></div>
+                </div>
+            </div>
+
+            <!-- Linter -->
+            <div id="linter-panel" class="bg-[#181818] border-t border-vsc-border px-3 py-1 text-[11px] text-gray-400 flex items-center justify-between shrink-0">
+                <div id="linter-status" class="flex items-center space-x-2 truncate">
+                    <span>🟢 0 Errores críticos analizados</span>
+                </div>
+                <span class="text-[10px] text-gray-500">RGS Engine Active (P2P Ready)</span>
+            </div>
+
+            <!-- Resizer Terminal -->
+            <div id="resizer-terminal" class="resizer-y" onmousedown="initResize(event, 'terminal')"></div>
+
+            <!-- Terminal Interactiva Dimensional -->
+            <div id="terminal-container" class="h-40 sm:h-48 bg-vsc-sidebar border-t border-vsc-border flex flex-col shrink-0 relative">
+                <div class="px-3 py-1.5 bg-[#2d2d2d] flex justify-between items-center text-xs text-gray-300 border-b border-vsc-border">
+                    <span class="font-bold text-vsc-accent flex items-center space-x-1.5">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        <span>TERMINAL / CONSOLA P2P (Escribe '/' para comandos)</span>
+                    </span>
+                    <div class="space-x-2 flex items-center">
+                        <button onclick="clearTerminal()" class="text-[11px] text-gray-400 hover:text-white px-1.5 bg-vsc-bg rounded">Limpiar</button>
+                        <button onclick="toggleTerminal()" class="text-[11px] text-gray-400 hover:text-white px-1.5 bg-vsc-bg rounded">Ocultar</button>
+                    </div>
+                </div>
+                <div id="terminal-output" class="flex-1 p-2 overflow-y-auto text-xs font-mono text-gray-300 space-y-1 bg-[#1e1e1e]">
+                    <p class="text-gray-500">// Consola P2P lista. Escribe <span class="text-yellow-400">/help</span> o <span class="text-yellow-400">/p2p</span> para comandos.</p>
+                </div>
+                <div class="p-1.5 bg-vsc-sidebar border-t border-vsc-border flex items-center">
+                    <span class="text-vsc-accent px-2 text-xs font-bold">$</span>
+                    <input type="text" id="terminal-input" placeholder="Comando o código..." class="flex-1 bg-transparent text-xs text-white focus:outline-none font-mono" oninput="handleTerminalInput(event)" onkeypress="handleTerminalKey(event)">
+                    <button onclick="executeCommand()" class="bg-[#0e639c] hover:bg-[#1177bb] text-white px-3 py-1 rounded text-xs transition">Enviar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Barra de Estado Inferior -->
+    <footer class="bg-vsc-statusbar text-white h-6 flex items-center justify-between px-2 text-[11px] shrink-0 select-none">
+        <div class="flex items-center space-x-3">
+            <span>⚡ main*</span>
+            <span id="p2p-status-badge" class="bg-black/30 px-1.5 py-0.5 rounded text-yellow-300">P2P: Desconectado</span>
+            <span id="error-badge-footer">0 ❌</span>
+        </div>
+        <div class="flex items-center space-x-3">
+            <span id="save-status">Guardado Automático OK</span>
+            <span id="file-lang-badge">HTML</span>
+            <span onclick="runProject()" class="cursor-pointer hover:bg-black/20 px-1.5 py-0.5 rounded font-semibold bg-white/10 flex items-center space-x-1">
+                <svg class="w-3 h-3 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path></svg>
+                <span>Run Web</span>
+            </span>
+        </div>
+    </footer>
+
+    <!-- Menú Contextual Completo -->
+    <div id="context-menu" class="hidden fixed bg-vsc-sidebar border border-vsc-border rounded shadow-xl py-1 z-50 text-xs w-48 text-gray-200">
+        <div onclick="ctxAction('run')" class="px-3 py-1.5 hover:bg-vsc-active cursor-pointer flex items-center space-x-2">
+            <svg class="w-3.5 h-3.5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path></svg>
+            <span>Ejecutar Solitario</span>
+        </div>
+        <div onclick="ctxAction('rename')" class="px-3 py-1.5 hover:bg-vsc-active cursor-pointer flex items-center space-x-2">
+            <svg class="w-3.5 h-3.5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+            <span>Renombrar</span>
+        </div>
+        <div onclick="ctxAction('copy')" class="px-3 py-1.5 hover:bg-vsc-active cursor-pointer flex items-center space-x-2">
+            <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+            <span>Copiar (Copy)</span>
+        </div>
+        <div onclick="ctxAction('paste')" class="px-3 py-1.5 hover:bg-vsc-active cursor-pointer flex items-center space-x-2">
+            <svg class="w-3.5 h-3.5 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+            <span>Pegar (Paste)</span>
+        </div>
+        <div onclick="ctxAction('export')" class="px-3 py-1.5 hover:bg-vsc-active cursor-pointer flex items-center space-x-2">
+            <svg class="w-3.5 h-3.5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            <span>Exportar Archivo</span>
+        </div>
+        <div class="border-t border-vsc-border my-1"></div>
+        <div onclick="ctxAction('delete')" class="px-3 py-1.5 hover:bg-red-600/20 text-red-400 cursor-pointer flex items-center space-x-2">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+            <span>Borrar</span>
+        </div>
+    </div>
+
+    <!-- Modal Sincronización VS Code PC y WebRTC P2P -->
+    <div id="vscode-sync-modal" class="fixed inset-0 bg-black/70 flex items-center justify-center hidden z-50 p-4">
+        <div class="bg-vsc-sidebar border border-vsc-border p-5 rounded-lg w-full max-w-xl shadow-2xl text-xs space-y-4 text-gray-200">
+            <div class="flex justify-between items-center border-b border-vsc-border pb-2">
+                <h3 class="font-bold text-white text-sm flex items-center space-x-2">
+                    <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    <span>Sincronización P2P WebRTC & VS Code PC</span>
+                </h3>
+                <button onclick="closeVsCodeSyncModal()" class="text-gray-400 hover:text-white font-bold text-sm">✕</button>
+            </div>
+
+            <!-- Sección WebRTC P2P Directo -->
+            <div class="bg-vsc-bg p-3 rounded border border-vsc-border space-y-3">
+                <div class="font-bold text-purple-300 flex items-center justify-between">
+                    <span>📡 Túnel Directo PC ⇄ Móvil (WebRTC)</span>
+                    <span id="p2p-modal-status" class="text-[10px] text-yellow-400">Estado: Inactivo</span>
+                </div>
+                <p class="text-gray-400 text-[11px]">Abre tu IDE en la PC como <b>Host</b> y conéctate desde el Móvil usando el Código de Sesión (Peer ID).</p>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div class="space-y-1">
+                        <label class="text-gray-400 block">1. Iniciar como Servidor (PC):</label>
+                        <button onclick="startP2PHost()" class="w-full bg-purple-600 hover:bg-purple-700 text-white py-1.5 rounded font-medium transition">Generar Sesión PC (Host)</button>
+                        <div class="flex items-center space-x-1 mt-1">
+                            <input type="text" id="my-peer-id-input" readonly placeholder="Tu ID de Sesión..." class="w-full bg-vsc-sidebar text-white px-2 py-1 rounded border border-vsc-border text-[11px] font-mono">
+                            <button onclick="copyMyPeerId()" class="bg-zinc-700 hover:bg-zinc-600 px-2 py-1 rounded text-white">Copiar</button>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-1">
+                        <label class="text-gray-400 block">2. Conectar (Móvil):</label>
+                        <input type="text" id="remote-peer-id-input" placeholder="Pega el ID de la PC aquí..." class="w-full bg-vsc-sidebar text-white px-2 py-1 rounded border border-vsc-border text-[11px] font-mono">
+                        <button onclick="connectToP2PHost()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-1.5 rounded font-medium transition mt-1">Conectar con PC (Cliente)</button>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center pt-2 border-t border-vsc-border/60">
+                    <button onclick="sendWorkspaceOverP2P()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded text-[11px] font-medium">📤 Enviar Workspace Completo al Peer</button>
+                    <span id="p2p-sync-info" class="text-[10px] text-gray-400">Sin conexión activa</span>
+                </div>
+            </div>
+
+            <!-- Sección Tradicional VS Code / JSON (Conservada íntegra) -->
+            <div class="space-y-2">
+                <label class="text-gray-300 block font-semibold">O pega el código / JSON de tus archivos de PC directamente:</label>
+                <textarea id="vscode-sync-input" placeholder="Pega código o JSON de tus archivos abiertos en VS Code..." class="w-full h-24 bg-vsc-bg text-white p-2 rounded border border-vsc-border font-mono text-xs focus:outline-none"></textarea>
+            </div>
+
+            <div class="flex justify-end space-x-2">
+                <button onclick="closeVsCodeSyncModal()" class="px-3 py-1.5 bg-zinc-700 text-white rounded">Cerrar</button>
+                <button onclick="applyVsCodeSync()" class="px-4 py-1.5 bg-vsc-accent text-white rounded font-medium">Importar Archivo Actual</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Creación -->
+    <div id="modal-prompt" class="fixed inset-0 bg-black/60 flex items-center justify-center hidden z-50">
+        <div class="bg-vsc-sidebar border border-vsc-border p-4 rounded w-96 shadow-2xl text-xs space-y-3">
+            <h3 id="modal-title" class="font-bold text-white text-sm">Crear Elemento</h3>
+            <p id="modal-desc" class="text-gray-400 text-[11px]">Selecciona una carpeta base o escribe el nombre:</p>
+            <div id="folder-suggestions" class="flex flex-wrap gap-1 max-h-24 overflow-y-auto bg-vsc-bg p-2 rounded border border-vsc-border"></div>
+            <input type="text" id="modal-input" placeholder="ej. src/componentes/nav.js o supabase.sb" class="w-full bg-vsc-bg text-white px-2.5 py-2 rounded border border-vsc-border focus:outline-none font-mono">
+            <div class="flex justify-end space-x-2">
+                <button onclick="closeModal()" class="px-3 py-1 bg-zinc-700 text-white rounded">Cancelar</button>
+                <button onclick="confirmModal()" class="px-3 py-1 bg-vsc-accent text-white rounded font-medium">Crear</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CodeMirror Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
+
+    <script>
+        let projectFiles = JSON.parse(localStorage.getItem("rgs_pro_plus_files_v5")) || {
+            "index.html": {
+                content: "<!DOCTYPE html>\n<html lang='es'>\n<head>\n    <meta charset='UTF-8'>\n    <title>Mi Web Profesional</title>\n    <link rel='stylesheet' href='assets/style.css'>\n</head>\n<body>\n    <div class='container'>\n        <h1>¡RGS Labs IDE Pro++ P2P!</h1>\n        <p>Sincronizado vía WebRTC y optimizado para móvil.</p>\n    </div>\n</body>\n</html>",
+                mode: "htmlmixed"
+            },
+            "assets/style.css": {
+                content: "body { background: #0f172a; color: #38bdf8; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }\n.container { text-align: center; background: #1e293b; padding: 40px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }",
+                mode: "css"
+            },
+            "config.sb": {
+                content: "-- Supabase Config & Schema\nCREATE TABLE rgs_projects (\n    id SERIAL PRIMARY KEY,\n    name TEXT NOT NULL,\n    created_at TIMESTAMP DEFAULT NOW()\n);",
+                mode: "sql"
+            },
+            "script.py": {
+                content: "print('¡Hola desde Python en RGS IDE P2P!')\nfor i in range(1, 3):\n    print(f'Ciclo {i}')",
+                mode: "python"
+            }
+        };
+
+        let collapsedFolders = JSON.parse(localStorage.getItem("rgs_collapsed_folders_v5")) || {};
+        let currentFile = Object.keys(projectFiles)[0];
+        let modalType = 'file';
+        let livePreviewActive = false;
+        let clipboardFileContent = null;
+        let contextTargetFile = null;
+        let longPressTimer = null;
+        let indentGuidesActive = true;
+        let currentTheme = localStorage.getItem("rgs_editor_theme") || "material-darker";
+
+        // Variables PeerJS WebRTC P2P
+        let p2pPeer = null;
+        let p2pConnection = null;
+
+        let editor = CodeMirror.fromTextArea(document.getElementById("code-editor"), {
+            mode: getLanguageMode(currentFile),
+            theme: currentTheme,
+            lineNumbers: true,
+            autoCloseBrackets: true,
+            indentUnit: 4,
+            lineWrapping: true,
+            indentWithTabs: false,
+            extraKeys: {
+                "Ctrl-S": function(cm) { saveFileNative(); },
+                "Cmd-S": function(cm) { saveFileNative(); }
+            }
+        });
+
+        editor.setValue(projectFiles[currentFile].content);
+        document.getElementById("setting-theme").value = currentTheme;
+
+        // Auto guardado con debounce y sincronización P2P en tiempo real
+        let saveTimeout;
+        editor.on("change", () => {
+            if (projectFiles[currentFile]) {
+                projectFiles[currentFile].content = editor.getValue();
+                clearTimeout(saveTimeout);
+                document.getElementById("save-status").textContent = "Guardando...";
+                saveTimeout = setTimeout(() => {
+                    localStorage.setItem("rgs_pro_plus_files_v5", JSON.stringify(projectFiles));
+                    document.getElementById("save-status").textContent = "Guardado Automático OK";
+                    
+                    // Transmitir cambio por WebRTC P2P si está conectado
+                    if (p2pConnection && p2pConnection.open) {
+                        p2pConnection.send({
+                            type: 'FILE_UPDATE',
+                            filename: currentFile,
+                            content: editor.getValue()
+                        });
+                    }
+                }, 500);
+                runLinter();
+                if (livePreviewActive) updateLivePreview();
+            }
+        });
+
+        // --- SISTEMA PEERJS / WEBRTC P2P ---
+        function startP2PHost() {
+            let randomId = 'rgs-ide-' + Math.random().toString(36).substring(2, 8);
+            if (p2pPeer) { p2pPeer.destroy(); }
+            
+            p2pPeer = new Peer(randomId);
+            
+            p2pPeer.on('open', (id) => {
+                document.getElementById("my-peer-id-input").value = id;
+                document.getElementById("p2p-modal-status").textContent = "Estado: Servidor Host Activo 🟢";
+                document.getElementById("p2p-modal-status").className = "text-[10px] text-green-400";
+                appendTerminal(`📡 [P2P Host]: Servidor abierto con ID: ${id}`, "text-green-400");
+            });
+
+            p2pPeer.on('connection', (conn) => {
+                p2pConnection = conn;
+                setupP2PConnectionHandlers();
+                document.getElementById("p2p-status-badge").textContent = "P2P: Conectado 🟢";
+                document.getElementById("p2p-status-badge").className = "bg-black/30 px-1.5 py-0.5 rounded text-green-400 font-bold";
+                document.getElementById("p2p-sync-info").textContent = "¡Conectado con dispositivo remoto!";
+                appendTerminal("🔗 [P2P]: ¡Dispositivo móvil conectado al host con éxito!", "text-green-400");
+                
+                // Enviar workspace automáticamente al conectar
+                setTimeout(() => { sendWorkspaceOverP2P(); }, 1000);
+            });
+
+            p2pPeer.on('error', (err) => {
+                appendTerminal(`❌ [P2P Error]: ${err.type}`, "text-red-400");
+            });
+        }
+
+        function connectToP2PHost() {
+            let remoteId = document.getElementById("remote-peer-id-input").value.trim();
+            if (!remoteId) { alert("Ingresa el ID de la sesión del Host (PC)"); return; }
+
+            if (p2pPeer) { p2pPeer.destroy(); }
+            p2pPeer = new Peer();
+
+            p2pPeer.on('open', (id) => {
+                appendTerminal(`🔌 [P2P Client]: Conectando a ${remoteId}...`, "text-yellow-300");
+                p2pConnection = p2pPeer.connect(remoteId);
+                setupP2PConnectionHandlers();
+            });
+
+            p2pPeer.on('error', (err) => {
+                appendTerminal(`❌ [P2P Error]: ${err.type}`, "text-red-400");
+            });
+        }
+
+        function setupP2PConnectionHandlers() {
+            if (!p2pConnection) return;
+
+            p2pConnection.on('open', () => {
+                document.getElementById("p2p-modal-status").textContent = "Estado: Conectado P2P 🟢";
+                document.getElementById("p2p-modal-status").className = "text-[10px] text-green-400";
+                document.getElementById("p2p-status-badge").textContent = "P2P: Conectado 🟢";
+                document.getElementById("p2p-status-badge").className = "bg-black/30 px-1.5 py-0.5 rounded text-green-400 font-bold";
+                document.getElementById("p2p-sync-info").textContent = "Túnel P2P cifrado activo.";
+                appendTerminal("🚀 [P2P]: Canal de datos WebRTC abierto y listo.", "text-green-400");
+            });
+
+            p2pConnection.on('data', (data) => {
+                if (data.type === 'FULL_WORKSPACE') {
+                    projectFiles = data.files;
+                    localStorage.setItem("rgs_pro_plus_files_v5", JSON.stringify(projectFiles));
+                    if (!projectFiles[currentFile]) {
+                        currentFile = Object.keys(projectFiles)[0];
+                    }
+                    editor.setValue(projectFiles[currentFile].content);
+                    renderIDE();
+                    appendTerminal("📥 [P2P]: Workspace completo recibido y sincronizado.", "text-cyan-400");
+                } else if (data.type === 'FILE_UPDATE') {
+                    if (projectFiles[data.filename]) {
+                        projectFiles[data.filename].content = data.content;
+                        localStorage.setItem("rgs_pro_plus_files_v5", JSON.stringify(projectFiles));
+                        if (currentFile === data.filename) {
+                            editor.setValue(data.content);
+                        }
+                        renderIDE();
+                        appendTerminal(`⚡ [P2P Sync]: Archivo actualizado -> ${data.filename}`, "text-cyan-300");
+                    }
+                }
+            });
+
+            p2pConnection.on('close', () => {
+                document.getElementById("p2p-status-badge").textContent = "P2P: Desconectado";
+                document.getElementById("p2p-status-badge").className = "bg-black/30 px-1.5 py-0.5 rounded text-yellow-300";
+                appendTerminal("⚠️ [P2P]: Conexión cerrada.", "text-yellow-400");
+            });
+        }
+
+        function sendWorkspaceOverP2P() {
+            if (!p2pConnection || !p2pConnection.open) {
+                alert("No hay conexión P2P activa con otro dispositivo.");
+                return;
+            }
+            p2pConnection.send({
+                type: 'FULL_WORKSPACE',
+                files: projectFiles
+            });
+            appendTerminal("📤 [P2P]: Workspace enviado al dispositivo remoto.", "text-green-400");
+            alert("¡Workspace enviado por P2P con éxito!");
+        }
+
+        function copyMyPeerId() {
+            let input = document.getElementById("my-peer-id-input");
+            input.select();
+            navigator.clipboard.writeText(input.value);
+            alert("ID de sesión copiado al portapapeles: " + input.value);
+        }
+        // ------------------------------------------
+
+        // Guardado nativo a archivo real si el navegador lo soporta
+        async function saveFileNative() {
+            localStorage.setItem("rgs_pro_plus_files_v5", JSON.stringify(projectFiles));
+            if ('showSaveFilePicker' in window) {
+                try {
+                    const handle = await window.showSaveFilePicker({
+                        suggestedName: currentFile.split('/').pop(),
+                        types: [{ description: 'Código fuente', accept: {'text/*': ['.html', '.css', '.js', '.py', '.md', '.sb', '.sql']} }]
+                    });
+                    const writable = await handle.createWritable();
+                    await writable.write(editor.getValue());
+                    await writable.close();
+                    document.getElementById("save-status").textContent = "Guardado en Archivo Nativo OK";
+                    setTimeout(() => { document.getElementById("save-status").textContent = "Guardado Automático OK"; }, 2000);
+                    return;
+                } catch(e) { console.log("File picker cancelado o no disponible"); }
+            }
+            // Fallback de descarga directa
+            let blob = new Blob([editor.getValue()], { type: 'text/plain' });
+            let dl = document.createElement('a');
+            dl.href = URL.createObjectURL(blob);
+            dl.download = currentFile.split('/').pop();
+            dl.click();
+            document.getElementById("save-status").textContent = "Archivo Descargado";
+            setTimeout(() => { document.getElementById("save-status").textContent = "Guardado Automático OK"; }, 2000);
+        }
+
+        function duplicateCurrentFile() {
+            if (!projectFiles[currentFile]) return;
+            let newName = "copy_" + currentFile;
+            projectFiles[newName] = { content: projectFiles[currentFile].content, mode: projectFiles[currentFile].mode };
+            renderIDE();
+            alert(`Duplicado creado: ${newName}`);
+        }
+
+        // Sincronización VS Code PC (Modals)
+        function openVsCodeSyncModal() { document.getElementById("vscode-sync-modal").classList.remove("hidden"); }
+        function closeVsCodeSyncModal() { document.getElementById("vscode-sync-modal").classList.add("hidden"); }
+        function applyVsCodeSync() {
+            let txt = document.getElementById("vscode-sync-input").value.trim();
+            if (!txt) return;
+            try {
+                let parsed = JSON.parse(txt);
+                if (typeof parsed === 'object') {
+                    projectFiles = parsed;
+                }
+            } catch(e) {
+                projectFiles[currentFile].content = txt;
+                editor.setValue(txt);
+            }
+            localStorage.setItem("rgs_pro_plus_files_v5", JSON.stringify(projectFiles));
+            renderIDE();
+            closeVsCodeSyncModal();
+            appendTerminal("🔗 Sincronización con VS Code PC aplicada correctamente.", "text-green-400");
+        }
+
+        // Abrir archivos locales desde File -> Abrir
+        function handleFileOpen(event) {
+            const files = event.target.files;
+            for (let i = 0; i < files.length; i++) {
+                let f = files[i];
+                let reader = new FileReader();
+                reader.onload = function(e) {
+                    projectFiles[f.name] = { content: e.target.result, mode: getLanguageMode(f.name) };
+                    renderIDE();
+                    selectFile(f.name);
+                };
+                reader.readAsText(f);
+            }
+        }
+
+        function handleFolderOpen(event) {
+            const files = event.target.files;
+            for (let i = 0; i < files.length; i++) {
+                let f = files[i];
+                let path = f.webkitRelativePath || f.name;
+                let reader = new FileReader();
+                reader.onload = (function(filePath) {
+                    return function(e) {
+                        projectFiles[filePath] = { content: e.target.result, mode: getLanguageMode(filePath) };
+                        renderIDE();
+                    };
+                })(path);
+                reader.readAsText(f);
+            }
+        }
+
+        // Temas y Guías de Sangría
+        function changeEditorTheme(theme) {
+            editor.setOption("theme", theme);
+            localStorage.setItem("rgs_editor_theme", theme);
+        }
+
+        function toggleIndentGuides() {
+            indentGuidesActive = !indentGuidesActive;
+            const btn = document.getElementById("btn-indent-guides");
+            if (indentGuidesActive) {
+                btn.textContent = "Activadas (ON)";
+                btn.className = "w-full bg-vsc-inactive hover:bg-vsc-active text-green-400 py-1.5 rounded border border-vsc-border text-xs";
+            } else {
+                btn.textContent = "Desactivadas (OFF)";
+                btn.className = "w-full bg-vsc-inactive hover:bg-vsc-active text-red-400 py-1.5 rounded border border-vsc-border text-xs";
+            }
+        }
+
+        function switchView(view) {
+            document.getElementById("view-explorer").classList.add("hidden");
+            document.getElementById("view-settings").classList.add("hidden");
+            document.getElementById("btn-explorer").className = "w-full h-10 flex items-center justify-center text-gray-400 hover:text-white transition";
+            document.getElementById("btn-settings").className = "w-full h-10 flex items-center justify-center text-gray-400 hover:text-white transition";
+
+            if (view === 'explorer') {
+                document.getElementById("view-explorer").classList.remove("hidden");
+                document.getElementById("btn-explorer").className = "w-full h-10 flex items-center justify-center text-white border-l-2 border-vsc-accent bg-vsc-bg/40";
+            } else if (view === 'settings') {
+                document.getElementById("view-settings").classList.remove("hidden");
+                document.getElementById("btn-settings").className = "w-full h-10 flex items-center justify-center text-white border-l-2 border-vsc-accent bg-vsc-bg/40";
+            }
+        }
+
+        function renderIDE() {
+            const treeEl = document.getElementById("file-tree");
+            const tabsEl = document.getElementById("tabs-bar");
+            treeEl.innerHTML = "";
+            tabsEl.innerHTML = "";
+
+            let tree = buildTreeStructure(Object.keys(projectFiles));
+            renderTreeRecursive(tree, treeEl, "");
+
+            for (let filename in projectFiles) {
+                if (filename.endsWith('/.keep')) continue;
+                const isSelected = filename === currentFile;
+                const tab = document.createElement("div");
+                tab.className = `px-3 h-full flex items-center space-x-2 text-xs text-white border-r border-vsc-border cursor-pointer shrink-0 ${isSelected ? 'bg-vsc-bg border-t-2 border-vsc-accent' : 'bg-vsc-sidebar text-gray-400'}`;
+                tab.innerHTML = `
+                    <span onclick="selectFile('${filename}')">${filename.split('/').pop()}</span>
+                    <button onclick="event.stopPropagation(); closeTab('${filename}')" class="hover:text-red-400 px-1">×</button>
+                `;
+                tabsEl.appendChild(tab);
+            }
+
+            document.getElementById("file-lang-badge").textContent = currentFile.split('.').pop().toUpperCase();
+            runLinter();
+            if (livePreviewActive) updateLivePreview();
+        }
+
+        function buildTreeStructure(paths) {
+            let root = {};
+            paths.forEach(path => {
+                let parts = path.split('/');
+                let current = root;
+                parts.forEach((part, index) => {
+                    if (!current[part]) {
+                        current[part] = index === parts.length - 1 ? null : {};
+                    }
+                    current = current[part];
+                });
+            });
+            return root;
+        }
+
+        function renderTreeRecursive(node, container, currentPath) {
+            for (let key in node) {
+                let fullPath = currentPath ? currentPath + '/' + key : key;
+                if (fullPath.endsWith('/.keep')) continue;
+
+                if (node[key] === null) {
+                    const isSelected = fullPath === currentFile;
+                    const item = document.createElement("div");
+                    item.className = `flex items-center justify-between px-2 py-1 rounded cursor-pointer transition text-xs pl-4 ${isSelected ? 'bg-vsc-active text-white font-bold border-l-2 border-vsc-accent' : 'text-gray-400 hover:bg-vsc-inactive'}`;
+                    item.innerHTML = `
+                        <div class="flex items-center space-x-2 truncate flex-1">
+                            ${getFileSvgIcon(fullPath)}
+                            <span class="truncate">${key}</span>
+                        </div>
+                    `;
+                    addContextHandlers(item, fullPath, false);
+                    container.appendChild(item);
+                } else {
+                    let isCollapsed = collapsedFolders[fullPath] === true;
+                    const folderDiv = document.createElement("div");
+                    folderDiv.className = "space-y-0.5";
+                    folderDiv.innerHTML = `
+                        <div class="flex items-center justify-between px-2 py-1 text-gray-300 font-semibold text-xs hover:bg-vsc-inactive rounded cursor-pointer folder-header" data-path="${fullPath}">
+                            <div class="flex items-center space-x-1.5 truncate">
+                                <svg class="w-4 h-4 text-yellow-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                                <span class="truncate">${key}</span>
+                            </div>
+                            <button onclick="event.stopPropagation(); toggleFolderCollapse('${fullPath}')" class="p-1 hover:text-white text-gray-400" title="Colapsar / Expandir">
+                                <svg class="w-3.5 h-3.5 transform transition-transform ${isCollapsed ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </button>
+                        </div>
+                    `;
+                    const subContainer = document.createElement("div");
+                    subContainer.className = `pl-3 space-y-0.5 border-l border-vsc-border/40 ml-2 ${isCollapsed ? 'hidden' : ''}`;
+                    renderTreeRecursive(node[key], subContainer, fullPath);
+                    folderDiv.appendChild(subContainer);
+                    
+                    addContextHandlers(folderDiv.firstElementChild, fullPath, true);
+                    container.appendChild(folderDiv);
+                }
+            }
+        }
+
+        function toggleFolderCollapse(folderPath) {
+            collapsedFolders[folderPath] = !collapsedFolders[folderPath];
+            localStorage.setItem("rgs_collapsed_folders_v5", JSON.stringify(collapsedFolders));
+            renderIDE();
+        }
+
+        function addContextHandlers(el, path, isFolder = false) {
+            el.onclick = (e) => { if (!isFolder) selectFile(path); };
+            el.oncontextmenu = (e) => {
+                e.preventDefault();
+                showContextMenu(e.clientX, e.clientY, path);
+            };
+            el.ontouchstart = (e) => {
+                longPressTimer = setTimeout(() => {
+                    let touch = e.touches[0];
+                    showContextMenu(touch.clientX, touch.clientY, path);
+                }, 600);
+            };
+            el.ontouchend = () => { clearTimeout(longPressTimer); };
+        }
+
+        function getFileSvgIcon(filename) {
+            if (filename.endsWith('.html')) return '<svg class="w-4 h-4 text-orange-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>';
+            if (filename.endsWith('.css')) return '<svg class="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 73.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path></svg>';
+            if (filename.endsWith('.js')) return '<svg class="w-4 h-4 text-yellow-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>';
+            if (filename.endsWith('.py')) return '<svg class="w-4 h-4 text-green-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"></path></svg>';
+            if (filename.endsWith('.md')) return '<svg class="w-4 h-4 text-blue-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>';
+            if (filename.endsWith('.sb') || filename.endsWith('.sql')) return '<svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>';
+            return '<svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>';
+        }
+
+        function getLanguageMode(filename) {
+            if (filename.endsWith('.html')) return 'htmlmixed';
+            if (filename.endsWith('.css')) return 'css';
+            if (filename.endsWith('.js')) return 'javascript';
+            if (filename.endsWith('.py')) return 'python';
+            if (filename.endsWith('.md')) return 'markdown';
+            if (filename.endsWith('.sb') || filename.endsWith('.sql')) return 'sql';
+            return 'text/plain';
+        }
+
+        function selectFile(filename) {
+            if (!projectFiles[filename]) return;
+            currentFile = filename;
+            editor.setValue(projectFiles[currentFile].content);
+            editor.setOption("mode", getLanguageMode(filename));
+            renderIDE();
+        }
+
+        function closeTab(filename) {
+            let keys = Object.keys(projectFiles).filter(f => !f.endsWith('/.keep'));
+            if (keys.length <= 1) return;
+            if (currentFile === filename) {
+                let idx = keys.indexOf(filename);
+                currentFile = keys[idx > 0 ? idx - 1 : 1];
+                editor.setValue(projectFiles[currentFile].content);
+                editor.setOption("mode", getLanguageMode(currentFile));
+            }
+            renderIDE();
+        }
+
+        function openNewModal(type) {
+            modalType = type;
+            const titleEl = document.getElementById("modal-title");
+            const descEl = document.getElementById("modal-desc");
+            const inputEl = document.getElementById("modal-input");
+            
+            titleEl.textContent = type === 'file' ? 'Crear Nuevo Archivo' : 'Crear Nueva Carpeta';
+            descEl.textContent = type === 'file' ? 'Haz clic en una carpeta para usar su ruta o escribe directo:' : 'Escribe el nombre de la nueva carpeta:';
+            
+            let folders = new Set();
+            Object.keys(projectFiles).forEach(path => {
+                let parts = path.split('/');
+                if (parts.length > 1) {
+                    parts.pop();
+                    folders.add(parts.join('/') + '/');
+                }
+            });
+
+            const suggestionsEl = document.getElementById("folder-suggestions");
+            suggestionsEl.innerHTML = '';
+            
+            if (type === 'file') {
+                suggestionsEl.style.display = 'flex';
+                if (folders.size === 0) {
+                    suggestionsEl.innerHTML = '<span class="text-gray-500 text-[10px]">Raíz (sin subcarpetas)</span>';
+                } else {
+                    folders.forEach(folder => {
+                        let btn = document.createElement("button");
+                        btn.className = "px-2 py-0.5 bg-vsc-sidebar text-blue-300 hover:bg-vsc-active rounded text-[10px] font-mono border border-vsc-border";
+                        btn.textContent = folder;
+                        btn.onclick = () => { inputEl.value = folder; inputEl.focus(); };
+                        suggestionsEl.appendChild(btn);
+                    });
+                }
+            } else {
+                suggestionsEl.style.display = 'none';
+            }
+
+            inputEl.value = "";
+            document.getElementById("modal-prompt").classList.remove("hidden");
+            inputEl.focus();
+        }
+
+        function closeModal() { document.getElementById("modal-prompt").classList.add("hidden"); }
+
+        function confirmModal() {
+            let val = document.getElementById("modal-input").value.trim();
+            val = val.replace(/^\/+/, '');
+            if (!val) return;
+
+            if (modalType === 'folder') {
+                let folderPath = val.endsWith('/') ? val : val + '/';
+                let dummyFile = folderPath + '.keep';
+                if (!projectFiles[dummyFile]) {
+                    projectFiles[dummyFile] = { content: "// Carpeta RGS", mode: "text/plain" };
+                }
+            } else {
+                if (projectFiles[val]) { alert("El archivo ya existe"); return; }
+                projectFiles[val] = { content: val.endsWith('.md') ? "# " + val : `// ${val}\n`, mode: getLanguageMode(val) };
+                currentFile = val;
+                editor.setValue(projectFiles[currentFile].content);
+                editor.setOption("mode", getLanguageMode(currentFile));
+            }
+
+            localStorage.setItem("rgs_pro_plus_files_v5", JSON.stringify(projectFiles));
+            closeModal();
+            renderIDE();
+        }
+
+        function showContextMenu(x, y, path) {
+            contextTargetFile = path;
+            const menu = document.getElementById("context-menu");
+            menu.style.left = `${Math.min(x, window.innerWidth - 180)}px`;
+            menu.style.top = `${Math.min(y, window.innerHeight - 220)}px`;
+            menu.classList.remove("hidden");
+        }
+
+        function hideContextMenu() {
+            document.getElementById("context-menu").classList.add("hidden");
+        }
+
+        function ctxAction(action) {
+            hideContextMenu();
+            if (!contextTargetFile) return;
+
+            if (action === 'run') {
+                if (!contextTargetFile.endsWith('/.keep')) {
+                    selectFile(contextTargetFile);
+                    runProject();
+                }
+            } else if (action === 'rename') {
+                let newName = prompt("Nuevo nombre:", contextTargetFile);
+                if (newName && newName.trim() && newName !== contextTargetFile) {
+                    projectFiles[newName.trim()] = projectFiles[contextTargetFile];
+                    delete projectFiles[contextTargetFile];
+                    if (currentFile === contextTargetFile) currentFile = newName.trim();
+                    localStorage.setItem("rgs_pro_plus_files_v5", JSON.stringify(projectFiles));
+                    renderIDE();
+                }
+            } else if (action === 'copy') {
+                clipboardFileContent = { path: contextTargetFile, content: projectFiles[contextTargetFile].content };
+                alert(`Copiado: ${contextTargetFile}`);
+            } else if (action === 'paste') {
+                if (!clipboardFileContent) { alert("No hay nada copiado"); return; }
+                let targetDir = contextTargetFile.includes('/') ? contextTargetFile.substring(0, contextTargetFile.lastIndexOf('/') + 1) : '';
+                let newName = targetDir + 'copy_of_' + clipboardFileContent.path.split('/').pop();
+                projectFiles[newName] = { content: clipboardFileContent.content, mode: getLanguageMode(newName) };
+                localStorage.setItem("rgs_pro_plus_files_v5", JSON.stringify(projectFiles));
+                renderIDE();
+            } else if (action === 'export') {
+                let code = projectFiles[contextTargetFile].content;
+                let blob = new Blob([code], { type: 'text/plain' });
+                let dl = document.createElement('a');
+                dl.href = URL.createObjectURL(blob);
+                dl.download = contextTargetFile.split('/').pop();
+                dl.click();
+            } else if (action === 'delete') {
+                if (confirm(`¿Eliminar ${contextTargetFile}?`)) {
+                    delete projectFiles[contextTargetFile];
+                    let keys = Object.keys(projectFiles).filter(f => !f.endsWith('/.keep'));
+                    if (keys.length > 0 && currentFile === contextTargetFile) {
+                        currentFile = keys[0];
+                        editor.setValue(projectFiles[currentFile].content);
+                        editor.setOption("mode", getLanguageMode(currentFile));
+                    }
+                    localStorage.setItem("rgs_pro_plus_files_v5", JSON.stringify(projectFiles));
+                    renderIDE();
+                }
+            }
+        }
+
+        function runProject() {
+            let html = "";
+            if (currentFile.endsWith('.html')) {
+                html = projectFiles[currentFile].content;
+            } else {
+                let indexFile = Object.keys(projectFiles).find(f => f.endsWith('index.html')) || Object.keys(projectFiles)[0];
+                html = projectFiles[indexFile].content;
+            }
+
+            for (let filename in projectFiles) {
+                if (filename.endsWith('.css')) {
+                    html = html.replace(`href='${filename}'`, "").replace(`href="${filename}"`, "") + `<style>${projectFiles[filename].content}</style>`;
+                }
+                if (filename.endsWith('.js')) {
+                    html = html.replace(`src='${filename}'`, "").replace(`src="${filename}"`, "") + `<script>${projectFiles[filename].content}<\/script>`;
+                }
+            }
+
+            let blob = new Blob([html], { type: 'text/html' });
+            window.open(URL.createObjectURL(blob), '_blank');
+            appendTerminal("🌐 Proyecto ejecutado en pestaña nueva mediante Blob URL seguro.", "text-green-400");
+        }
+
+        function toggleLivePreview() {
+            livePreviewActive = !livePreviewActive;
+            const pane = document.getElementById("live-preview-pane");
+            const resizer = document.getElementById("resizer-preview");
+            if (livePreviewActive) {
+                pane.classList.remove("hidden");
+                resizer.classList.remove("hidden");
+                updateLivePreview();
+            } else {
+                pane.classList.add("hidden");
+                resizer.classList.add("hidden");
+            }
+        }
+
+        function setPreviewSize(type) {
+            const pane = document.getElementById("live-preview-pane");
+            if (type === 'mobile') {
+                pane.style.width = '375px';
+            } else {
+                pane.style.width = '50%';
+            }
+        }
+
+        function updateLivePreview() {
+            const contentEl = document.getElementById("live-preview-content");
+            let code = editor.getValue();
+            if (currentFile.endsWith('.md')) {
+                contentEl.className = "flex-1 p-4 overflow-y-auto bg-white text-black text-sm block";
+                contentEl.innerHTML = marked.parse(code);
+            } else if (currentFile.endsWith('.html')) {
+                contentEl.className = "flex-1 p-0 overflow-hidden bg-white text-black text-sm flex justify-center items-center";
+                let html = code;
+                for (let filename in projectFiles) {
+                    if (filename.endsWith('.css')) html += `<style>${projectFiles[filename].content}</style>`;
+                }
+                contentEl.innerHTML = `<iframe srcdoc="${html.replace(/"/g, '&quot;')}" class="w-full h-full border-0"></iframe>`;
+            } else {
+                contentEl.className = "flex-1 p-4 overflow-y-auto bg-vsc-bg text-vsc-text text-xs font-mono block";
+                contentEl.innerHTML = `<pre>${code}</pre>`;
+            }
+        }
+
+        function runPythonCode(code) {
+            appendTerminal("🐍 [Python Engine]:", "text-yellow-300");
+            try {
+                let lines = code.split('\n');
+                lines.forEach(line => {
+                    let trimmed = line.trim();
+                    if (trimmed.startsWith('print(')) {
+                        let content = trimmed.substring(6, trimmed.length - 1);
+                        if (content.startsWith("f'") || content.startsWith('f"')) {
+                            content = content.slice(2, -1).replace(/\{(.*?)\}/g, (_, g) => eval(g));
+                        } else {
+                            content = eval(content);
+                        }
+                        appendTerminal(content, "text-green-400");
+                    }
+                });
+                appendTerminal(">>> Proceso finalizado.", "text-gray-500");
+            } catch(err) {
+                appendTerminal(`Error Python: ${err.message}`, "text-red-400");
+            }
+        }
+
+        function runLinter() {
+            let code = editor.getValue();
+            let openBraces = (code.match(/\{/g) || []).length;
+            let closeBraces = (code.match(/\}/g) || []).length;
+            const linterStatus = document.getElementById("linter-status");
+            const footerBadge = document.getElementById("error-badge-footer");
+
+            if (Math.abs(openBraces - closeBraces) > 2) {
+                linterStatus.innerHTML = `<span class="text-red-400 font-bold">❌ Desbalance de llaves detectado.</span>`;
+                footerBadge.innerHTML = `<span class="text-red-400">1 ❌</span>`;
+            } else {
+                linterStatus.innerHTML = `<span class="text-green-400 font-bold">🟢 0 Errores críticos analizados.</span>`;
+                footerBadge.innerHTML = `<span class="text-green-400">0 ❌</span>`;
+            }
+        }
+
+        // Terminal y Comandos
+        function handleTerminalInput(e) {
+            if (e.target.value === '/') {
+                showTerminalHelp();
+            }
+        }
+
+        function showTerminalHelp() {
+            appendTerminal(`
+                <div class="bg-[#252526] p-2 rounded border border-vsc-border my-1 space-y-1">
+                    <p class="font-bold text-yellow-400">⚡ Comandos RGS IDE P2P Disponibles:</p>
+                    <p><span class="text-blue-300 font-bold">/help</span> -> Muestra esta ayuda de comandos.</p>
+                    <p><span class="text-blue-300 font-bold">/p2p</span> -> Abre el modal de sincronización WebRTC.</p>
+                    <p><span class="text-blue-300 font-bold">/run</span> -> Ejecuta el archivo activo actual.</p>
+                    <p><span class="text-blue-300 font-bold">/preview</span> -> Abre previsualización web real.</p>
+                    <p><span class="text-blue-300 font-bold">/list</span> -> Lista todos los archivos del workspace.</p>
+                    <p><span class="text-blue-300 font-bold">/clear</span> -> Limpia las líneas de la consola.</p>
+                </div>
+            `, "text-gray-300");
+        }
+
+        function handleTerminalKey(e) { if (e.key === 'Enter') executeCommand(); }
+
+        function executeCommand() {
+            const input = document.getElementById("terminal-input");
+            const cmd = input.value.trim();
+            if (!cmd) return;
+
+            appendTerminal(`$ ${cmd}`, "text-blue-400");
+
+            if (cmd === '/help' || cmd === '/') {
+                showTerminalHelp();
+            } else if (cmd === '/p2p') {
+                openVsCodeSyncModal();
+            } else if (cmd === '/preview') {
+                runProject();
+            } else if (cmd === '/run') {
+                if (currentFile.endsWith('.py')) runPythonCode(editor.getValue());
+                else runProject();
+            } else if (cmd === '/clear') {
+                clearTerminal();
+            } else if (cmd === '/list') {
+                appendTerminal("📁 Archivos en el Workspace:", "text-yellow-300");
+                Object.keys(projectFiles).forEach(f => {
+                    if (!f.endsWith('/.keep')) appendTerminal(` - ${f}`, "text-gray-300");
+                });
+            } else {
+                try {
+                    let res = eval(editor.getValue() + "\n" + cmd);
+                    if (res !== undefined) appendTerminal(res, "text-green-400");
+                    else appendTerminal("Ejecutado.", "text-gray-300");
+                } catch(err) {
+                    appendTerminal(`Error: ${err.message}`, "text-red-400");
+                }
+            }
+            input.value = "";
+        }
+
+        function appendTerminal(text, colorClass) {
+            const out = document.getElementById("terminal-output");
+            out.innerHTML += `<p class="${colorClass}">${text}</p>`;
+            out.scrollTop = out.scrollHeight;
+        }
+
+        function clearTerminal() {
+            document.getElementById("terminal-output").innerHTML = '<p class="text-gray-500">// Terminal limpia.</p>';
+        }
+
+        // Paneles Dimensionales (Resizable System)
+        let activeResizeTarget = null;
+        let startX = 0, startY = 0, startWidth = 0, startHeight = 0;
+
+        function initResize(e, target) {
+            activeResizeTarget = target;
+            startX = e.clientX || e.touches[0].clientX;
+            startY = e.clientY || e.touches[0].clientY;
+            
+            if (target === 'left') {
+                startWidth = document.getElementById("left-sidebar").offsetWidth;
+            } else if (target === 'preview') {
+                startWidth = document.getElementById("live-preview-pane").offsetWidth;
+            } else if (target === 'terminal') {
+                startHeight = document.getElementById("terminal-container").offsetHeight;
+            }
+            
+            document.addEventListener('mousemove', doResize);
+            document.addEventListener('mouseup', stopResize);
+            document.addEventListener('touchmove', doResizeTouch);
+            document.addEventListener('touchend', stopResize);
+            e.preventDefault();
+        }
+
+        function doResize(e) {
+            if (!activeResizeTarget) return;
+            let currentX = e.clientX;
+            let currentY = e.clientY;
+
+            if (activeResizeTarget === 'left') {
+                let newWidth = startWidth + (currentX - startX);
+                if (newWidth > 150 && newWidth < 500) {
+                    document.getElementById("left-sidebar").style.width = newWidth + 'px';
+                }
+            } else if (activeResizeTarget === 'preview') {
+                let newWidth = startWidth - (currentX - startX);
+                if (newWidth > 200 && newWidth < 800) {
+                    document.getElementById("live-preview-pane").style.width = newWidth + 'px';
+                }
+            } else if (activeResizeTarget === 'terminal') {
+                let newHeight = startHeight - (currentY - startY);
+                if (newHeight > 80 && newHeight < 500) {
+                    document.getElementById("terminal-container").style.height = newHeight + 'px';
+                }
+            }
+            editor.refresh();
+        }
+
+        function doResizeTouch(e) {
+            if (!activeResizeTarget) return;
+            let touch = e.touches[0];
+            doResize({ clientX: touch.clientX, clientY: touch.clientY });
+        }
+
+        function stopResize() {
+            activeResizeTarget = null;
+            document.removeEventListener('mousemove', doResize);
+            document.removeEventListener('mouseup', stopResize);
+            document.removeEventListener('touchmove', doResizeTouch);
+            document.removeEventListener('touchend', stopResize);
+            editor.refresh();
+        }
+
+        function changeFontSize(size) { document.querySelector(".CodeMirror").style.fontSize = size; editor.refresh(); }
+        function toggleSidebar() { document.getElementById("left-sidebar").classList.toggle("hidden"); }
+        function toggleTerminal() { document.getElementById("terminal-container").classList.toggle("hidden"); }
+        function resetStorage() { if (confirm("¿Restaurar valores de fábrica?")) { localStorage.clear(); location.reload(); } }
+        function exportProjectZip() {
+            let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(projectFiles, null, 2));
+            let dl = document.createElement('a');
+            dl.setAttribute("href", dataStr);
+            dl.setAttribute("download", "rgs-ide-project.json");
+            dl.click();
+        }
+
+        renderIDE();
+    </script>
+</body>
+</html>
