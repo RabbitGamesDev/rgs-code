@@ -27,7 +27,7 @@
 
 ## 🚀 Live Demo
 You can try the application directly on the web via its official deployment:
-👉 [Link to RGS.Code on GitHub Pages](https://tu-usuario.github.io/rgs-code/)
+👉 [Link to RGS.Code on GitHub Pages](https://rabbitgamesdev.github.io/rgs-code/)
 
 ---
 
