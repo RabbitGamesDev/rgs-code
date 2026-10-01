@@ -45,6 +45,9 @@
     <!-- PeerJS para WebRTC P2P Directo PC ⇄ Móvil -->
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 
+    <!-- qrcode-generator para códigos QR dinámicos P2P -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+
     <style>
         .CodeMirror {
             height: 100% !important;
@@ -88,19 +91,33 @@
         .resizer-y:hover, .resizer-y.active {
             background: #007acc;
         }
+
+        @media (max-width: 768px) {
+            .CodeMirror {
+                font-size: 16px !important;
+            }
+            #left-sidebar {
+                position: absolute !important;
+                left: 48px !important;
+                top: 0;
+                bottom: 0;
+                z-index: 40;
+                box-shadow: 10px 0 30px rgba(0,0,0,0.8);
+            }
+        }
     </style>
 </head>
-<body id="app-body" class="bg-vsc-bg text-vsc-text h-screen flex flex-col overflow-hidden select-none font-sans" onclick="hideContextMenu()">
+<body id="app-body" class="bg-vsc-bg text-vsc-text h-screen flex flex-col overflow-hidden select-none font-sans" onclick="hideAllDropdowns(event)">
 
     <!-- Menú Superior (File y Accesos) -->
-    <header class="bg-vsc-sidebar border-b border-vsc-border h-8 hidden sm:flex items-center px-3 space-x-3 text-xs text-gray-300 shrink-0">
-        <!-- Menú File Desplegable -->
-        <div class="relative group">
-            <span class="hover:bg-vsc-active px-2 py-1 rounded cursor-pointer flex items-center space-x-1 font-bold text-white">
+    <header class="bg-vsc-sidebar border-b border-vsc-border h-8 flex items-center px-3 space-x-3 text-xs text-gray-300 shrink-0">
+        <!-- Menú File Desplegable Estable por Clic -->
+        <div class="relative" id="file-menu-container">
+            <span onclick="toggleFileMenu(event)" class="hover:bg-vsc-active px-2 py-1 rounded cursor-pointer flex items-center space-x-1 font-bold text-white">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
                 <span>File</span>
             </span>
-            <div class="absolute left-0 top-full mt-1 w-56 bg-vsc-sidebar border border-vsc-border shadow-2xl rounded py-1 hidden group-hover:block z-50 text-gray-200">
+            <div id="file-dropdown" class="absolute left-0 top-full mt-1 w-56 bg-vsc-sidebar border border-vsc-border shadow-2xl rounded py-1 hidden z-50 text-gray-200">
                 <div onclick="openNewModal('file')" class="px-3 py-1.5 hover:bg-vsc-active cursor-pointer flex items-center justify-between">
                     <span>Nuevo Archivo...</span>
                     <span class="text-[10px] text-gray-500">Ctrl+N</span>
@@ -151,14 +168,14 @@
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             <span>Ejecutar Web</span>
         </span>
-        <span class="text-gray-500">| RGS Labs IDE Pro++ P2P[cite: 5]</span>
+        <span class="text-gray-500 hidden sm:inline">| RGS Labs IDE Pro++ P2P</span>
     </header>
 
     <!-- Pantalla Principal -->
     <div class="flex-1 flex overflow-hidden relative">
         
         <!-- Barra Lateral de Iconos SVG -->
-        <aside class="w-12 bg-vsc-activity flex flex-col items-center py-2 justify-between shrink-0 border-r border-vsc-border/40 z-10">
+        <aside class="w-12 bg-vsc-activity flex flex-col items-center py-2 justify-between shrink-0 border-r border-vsc-border/40 z-30">
             <div class="flex flex-col space-y-4 items-center w-full">
                 <button onclick="switchView('explorer')" id="btn-explorer" title="Explorador" class="w-full h-10 flex items-center justify-center text-white border-l-2 border-vsc-accent bg-vsc-bg/40">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
@@ -178,10 +195,10 @@
         </aside>
 
         <!-- Panel Izquierdo Dimensional (Explorador / Ajustes) -->
-        <div id="left-sidebar" class="w-64 bg-vsc-sidebar flex flex-col border-r border-vsc-border shrink-0 text-xs transition-all duration-75 relative">
+        <div id="left-sidebar" class="w-64 bg-vsc-sidebar flex flex-col border-r border-vsc-border shrink-0 text-xs transition-all duration-75 relative flex">
             <!-- Explorador de Archivos -->
-            <div id="view-explorer" class="flex flex-col h-full">
-                <div class="px-3 py-2.5 text-[11px] font-bold tracking-wider text-gray-400 uppercase flex justify-between items-center border-b border-vsc-border/50">
+            <div id="view-explorer" class="flex flex-col h-full overflow-y-auto">
+                <div class="px-3 py-2.5 text-[11px] font-bold tracking-wider text-gray-400 uppercase flex justify-between items-center border-b border-vsc-border/50 shrink-0">
                     <span class="truncate">WORKSPACE RGS</span>
                     <div class="space-x-1 shrink-0 flex items-center">
                         <button onclick="openNewModal('file')" class="text-gray-300 hover:text-white p-1" title="Nuevo Archivo">
@@ -192,7 +209,29 @@
                         </button>
                     </div>
                 </div>
-                <div id="file-tree" class="flex-1 overflow-y-auto py-1 px-1 space-y-1"></div>
+                <div id="file-tree" class="py-1 px-1 space-y-1"></div>
+
+                <!-- Outline (Estructura del Código Activo) -->
+                <div class="border-t border-vsc-border mt-2">
+                    <div onclick="toggleSection('outline-content')" class="px-3 py-1.5 text-[11px] font-bold tracking-wider text-gray-400 uppercase flex justify-between items-center cursor-pointer hover:bg-vsc-active">
+                        <span>OUTLINE</span>
+                        <span id="outline-arrow" class="text-xs">▼</span>
+                    </div>
+                    <div id="outline-content" class="p-2 space-y-1 text-gray-300 text-[11px] max-h-36 overflow-y-auto">
+                        <p class="text-gray-500 italic">Sin elementos en el archivo actual</p>
+                    </div>
+                </div>
+
+                <!-- Timeline (Historial de Cambios) -->
+                <div class="border-t border-vsc-border mt-2 mb-4">
+                    <div onclick="toggleSection('timeline-content')" class="px-3 py-1.5 text-[11px] font-bold tracking-wider text-gray-400 uppercase flex justify-between items-center cursor-pointer hover:bg-vsc-active">
+                        <span>TIMELINE</span>
+                        <span id="timeline-arrow" class="text-xs">▼</span>
+                    </div>
+                    <div id="timeline-content" class="p-2 space-y-1 text-gray-300 text-[11px] max-h-36 overflow-y-auto">
+                        <div class="text-gray-400">Hace un momento - Edición activa</div>
+                    </div>
+                </div>
             </div>
 
             <!-- Ajustes Mejorados -->
@@ -239,16 +278,18 @@
             <div id="resizer-left" class="resizer-x absolute right-0 top-0 bottom-0" onmousedown="initResize(event, 'left')"></div>
         </div>
 
-        <!-- Área Central (Editor + Preview + Terminal) -->
+        <!-- Área Central (Editor / Visor de Medios + Preview + Terminal) -->
         <div class="flex-1 flex flex-col h-full overflow-hidden bg-vsc-bg relative">
             
-            <!-- Pestañas Superiores -->
+            <!-- Pestañas Superiores (Optimizado: solo muestra archivos abiertos activamente) -->
             <div class="bg-vsc-sidebar flex items-center overflow-x-auto border-b border-vsc-border shrink-0 h-9" id="tabs-bar"></div>
 
-            <!-- Contenedor de Edición y Previsualización con Resizer -->
+            <!-- Contenedor de Edición / Visor de Medios y Previsualización -->
             <div class="flex-1 flex relative overflow-hidden" id="editor-preview-container">
                 <div id="editor-pane" class="flex-1 flex flex-col relative overflow-hidden">
                     <textarea id="code-editor"></textarea>
+                    <!-- Contenedor de visores interactivos (imágenes, audio, video) -->
+                    <div id="media-viewer" class="absolute inset-0 bg-[#1e1e1e] flex flex-col items-center justify-center p-6 hidden overflow-auto"></div>
                 </div>
 
                 <!-- Resizer Preview -->
@@ -275,7 +316,7 @@
                 <div id="linter-status" class="flex items-center space-x-2 truncate">
                     <span>🟢 0 Errores críticos analizados</span>
                 </div>
-                <span class="text-[10px] text-gray-500">RGS Engine Active (P2P Ready)</span>
+                <span class="text-[10px] text-gray-500">RGS Engine Active (P2P + QR Ready)</span>
             </div>
 
             <!-- Resizer Terminal -->
@@ -351,39 +392,48 @@
         </div>
     </div>
 
-    <!-- Modal Sincronización VS Code PC y WebRTC P2P -->
+    <!-- Modal Sincronización VS Code PC y WebRTC P2P con QR Dinámico -->
     <div id="vscode-sync-modal" class="fixed inset-0 bg-black/70 flex items-center justify-center hidden z-50 p-4">
         <div class="bg-vsc-sidebar border border-vsc-border p-5 rounded-lg w-full max-w-xl shadow-2xl text-xs space-y-4 text-gray-200">
             <div class="flex justify-between items-center border-b border-vsc-border pb-2">
                 <h3 class="font-bold text-white text-sm flex items-center space-x-2">
                     <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                    <span>Sincronización P2P WebRTC & VS Code PC</span>
+                    <span>Sincronización P2P WebRTC & Código QR Dinámico (Cada Minuto)</span>
                 </h3>
                 <button onclick="closeVsCodeSyncModal()" class="text-gray-400 hover:text-white font-bold text-sm">✕</button>
             </div>
 
-            <!-- Sección WebRTC P2P Directo -->
+            <!-- Sección WebRTC P2P Directo con QR Dinámico -->
             <div class="bg-vsc-bg p-3 rounded border border-vsc-border space-y-3">
                 <div class="font-bold text-purple-300 flex items-center justify-between">
-                    <span>📡 Túnel Directo PC ⇄ Móvil (WebRTC)</span>
+                    <span>📡 Túnel Directo PC ⇄ Móvil (QR Móvil Automático)</span>
                     <span id="p2p-modal-status" class="text-[10px] text-yellow-400">Estado: Inactivo</span>
                 </div>
-                <p class="text-gray-400 text-[11px]">Abre tu IDE en la PC como <b>Host</b> y conéctate desde el Móvil usando el Código de Sesión (Peer ID).</p>
+                <p class="text-gray-400 text-[11px]">Genera tu sesión de host. El código QR se actualiza cada 60 segundos por seguridad.</p>
                 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <div class="space-y-1">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                    <div class="space-y-2">
                         <label class="text-gray-400 block">1. Iniciar como Servidor (PC):</label>
-                        <button onclick="startP2PHost()" class="w-full bg-purple-600 hover:bg-purple-700 text-white py-1.5 rounded font-medium transition">Generar Sesión PC (Host)</button>
+                        <button onclick="startP2PHost()" class="w-full bg-purple-600 hover:bg-purple-700 text-white py-1.5 rounded font-medium transition">Generar Sesión y QR</button>
                         <div class="flex items-center space-x-1 mt-1">
                             <input type="text" id="my-peer-id-input" readonly placeholder="Tu ID de Sesión..." class="w-full bg-vsc-sidebar text-white px-2 py-1 rounded border border-vsc-border text-[11px] font-mono">
                             <button onclick="copyMyPeerId()" class="bg-zinc-700 hover:bg-zinc-600 px-2 py-1 rounded text-white">Copiar</button>
                         </div>
                     </div>
                     
-                    <div class="space-y-1">
-                        <label class="text-gray-400 block">2. Conectar (Móvil):</label>
+                    <div class="flex flex-col items-center justify-center bg-white p-2 rounded border border-vsc-border">
+                        <div id="p2p-qrcode-container" class="flex items-center justify-center min-h-[120px]">
+                            <span class="text-gray-500 text-[10px] text-center">QR aparecerá aquí al iniciar Host</span>
+                        </div>
+                        <span id="qr-timer-badge" class="text-[9px] text-gray-600 mt-1">Refresco QR: --s</span>
+                    </div>
+                </div>
+
+                <div class="space-y-1">
+                    <label class="text-gray-400 block">2. Conectar (Móvil / Escanear o Pegar ID):</label>
+                    <div class="flex space-x-1">
                         <input type="text" id="remote-peer-id-input" placeholder="Pega el ID de la PC aquí..." class="w-full bg-vsc-sidebar text-white px-2 py-1 rounded border border-vsc-border text-[11px] font-mono">
-                        <button onclick="connectToP2PHost()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-1.5 rounded font-medium transition mt-1">Conectar con PC (Cliente)</button>
+                        <button onclick="connectToP2PHost()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded font-medium transition">Conectar</button>
                     </div>
                 </div>
 
@@ -393,10 +443,10 @@
                 </div>
             </div>
 
-            <!-- Sección Tradicional VS Code / JSON (Conservada íntegra) -->
+            <!-- Sección Tradicional VS Code / JSON -->
             <div class="space-y-2">
                 <label class="text-gray-300 block font-semibold">O pega el código / JSON de tus archivos de PC directamente:</label>
-                <textarea id="vscode-sync-input" placeholder="Pega código o JSON de tus archivos abiertos en VS Code..." class="w-full h-24 bg-vsc-bg text-white p-2 rounded border border-vsc-border font-mono text-xs focus:outline-none"></textarea>
+                <textarea id="vscode-sync-input" placeholder="Pega código o JSON de tus archivos abiertos en VS Code..." class="w-full h-20 bg-vsc-bg text-white p-2 rounded border border-vsc-border font-mono text-xs focus:outline-none"></textarea>
             </div>
 
             <div class="flex justify-end space-x-2">
@@ -431,7 +481,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
 
     <script>
-        let projectFiles = JSON.parse(localStorage.getItem("rgs_pro_plus_files_v5")) || {
+        let projectFiles = JSON.parse(localStorage.getItem("rgs_pro_plus_files_v6")) || {
             "index.html": {
                 content: "<!DOCTYPE html>\n<html lang='es'>\n<head>\n    <meta charset='UTF-8'>\n    <title>Mi Web Profesional</title>\n    <link rel='stylesheet' href='assets/style.css'>\n</head>\n<body>\n    <div class='container'>\n        <h1>¡RGS Labs IDE Pro++ P2P!</h1>\n        <p>Sincronizado vía WebRTC y optimizado para móvil.</p>\n    </div>\n</body>\n</html>",
                 mode: "htmlmixed"
@@ -447,11 +497,19 @@
             "script.py": {
                 content: "print('¡Hola desde Python en RGS IDE P2P!')\nfor i in range(1, 3):\n    print(f'Ciclo {i}')",
                 mode: "python"
+            },
+            "README.md": {
+                content: "# RGS IDE Pro++\n\nProyecto profesional con soporte avanzado multiarchivo.",
+                mode: "markdown"
             }
         };
 
-        let collapsedFolders = JSON.parse(localStorage.getItem("rgs_collapsed_folders_v5")) || {};
-        let currentFile = Object.keys(projectFiles)[0];
+        let collapsedFolders = JSON.parse(localStorage.getItem("rgs_collapsed_folders_v6")) || {};
+        let openTabs = JSON.parse(localStorage.getItem("rgs_open_tabs_v6")) || ["index.html"];
+        let currentFile = localStorage.getItem("rgs_current_file_v6") || "index.html";
+        if (!projectFiles[currentFile]) currentFile = Object.keys(projectFiles)[0];
+        if (!openTabs.includes(currentFile)) openTabs.push(currentFile);
+
         let modalType = 'file';
         let livePreviewActive = false;
         let clipboardFileContent = null;
@@ -460,9 +518,11 @@
         let indentGuidesActive = true;
         let currentTheme = localStorage.getItem("rgs_editor_theme") || "material-darker";
 
-        // Variables PeerJS WebRTC P2P
+        // Variables PeerJS WebRTC P2P y QR Dinámico
         let p2pPeer = null;
         let p2pConnection = null;
+        let qrTimerInterval = null;
+        let qrRotationCounter = 0;
 
         let editor = CodeMirror.fromTextArea(document.getElementById("code-editor"), {
             mode: getLanguageMode(currentFile),
@@ -478,21 +538,20 @@
             }
         });
 
-        editor.setValue(projectFiles[currentFile].content);
+        loadActiveFileContent();
         document.getElementById("setting-theme").value = currentTheme;
 
         // Auto guardado con debounce y sincronización P2P en tiempo real
         let saveTimeout;
         editor.on("change", () => {
-            if (projectFiles[currentFile]) {
+            if (projectFiles[currentFile] && !isMediaFile(currentFile)) {
                 projectFiles[currentFile].content = editor.getValue();
                 clearTimeout(saveTimeout);
                 document.getElementById("save-status").textContent = "Guardando...";
                 saveTimeout = setTimeout(() => {
-                    localStorage.setItem("rgs_pro_plus_files_v5", JSON.stringify(projectFiles));
+                    localStorage.setItem("rgs_pro_plus_files_v6", JSON.stringify(projectFiles));
                     document.getElementById("save-status").textContent = "Guardado Automático OK";
                     
-                    // Transmitir cambio por WebRTC P2P si está conectado
                     if (p2pConnection && p2pConnection.open) {
                         p2pConnection.send({
                             type: 'FILE_UPDATE',
@@ -500,13 +559,26 @@
                             content: editor.getValue()
                         });
                     }
+                    updateOutlineAndTimeline();
                 }, 500);
                 runLinter();
                 if (livePreviewActive) updateLivePreview();
             }
         });
 
-        // --- SISTEMA PEERJS / WEBRTC P2P ---
+        function toggleFileMenu(e) {
+            e.stopPropagation();
+            const dropdown = document.getElementById("file-dropdown");
+            dropdown.classList.toggle("hidden");
+        }
+
+        function hideAllDropdowns(e) {
+            if (!e.target.closest('#file-menu-container')) {
+                document.getElementById("file-dropdown").classList.add("hidden");
+            }
+        }
+
+        // --- SISTEMA PEERJS / WEBRTC P2P CON QR DINÁMICO CADA MINUTO ---
         function startP2PHost() {
             let randomId = 'rgs-ide-' + Math.random().toString(36).substring(2, 8);
             if (p2pPeer) { p2pPeer.destroy(); }
@@ -518,6 +590,9 @@
                 document.getElementById("p2p-modal-status").textContent = "Estado: Servidor Host Activo 🟢";
                 document.getElementById("p2p-modal-status").className = "text-[10px] text-green-400";
                 appendTerminal(`📡 [P2P Host]: Servidor abierto con ID: ${id}`, "text-green-400");
+                
+                generateDynamicQRCode(id);
+                startQRTickTimer(id);
             });
 
             p2pPeer.on('connection', (conn) => {
@@ -527,14 +602,50 @@
                 document.getElementById("p2p-status-badge").className = "bg-black/30 px-1.5 py-0.5 rounded text-green-400 font-bold";
                 document.getElementById("p2p-sync-info").textContent = "¡Conectado con dispositivo remoto!";
                 appendTerminal("🔗 [P2P]: ¡Dispositivo móvil conectado al host con éxito!", "text-green-400");
-                
-                // Enviar workspace automáticamente al conectar
                 setTimeout(() => { sendWorkspaceOverP2P(); }, 1000);
             });
 
             p2pPeer.on('error', (err) => {
                 appendTerminal(`❌ [P2P Error]: ${err.type}`, "text-red-400");
             });
+        }
+
+        function generateDynamicQRCode(peerId) {
+            qrRotationCounter++;
+            let container = document.getElementById("p2p-qrcode-container");
+            container.innerHTML = "";
+            
+            // Incluimos un salt temporal que cambia cada minuto para asegurar que el QR sea dinámico y único
+            let qrPayload = JSON.stringify({ peer: peerId, t: Date.now(), rot: qrRotationCounter });
+            
+            try {
+                let qr = qrcode(0, 'L');
+                qr.addData(qrPayload);
+                qr.make();
+                container.innerHTML = qr.createImgTag(4, 4);
+                let img = container.querySelector('img');
+                if (img) {
+                    img.className = "w-28 h-28 object-contain rounded";
+                }
+            } catch(e) {
+                container.textContent = peerId;
+            }
+        }
+
+        function startQRTickTimer(peerId) {
+            if (qrTimerInterval) clearInterval(qrTimerInterval);
+            let timeLeft = 60;
+            document.getElementById("qr-timer-badge").textContent = `Refresco QR: ${timeLeft}s`;
+            
+            qrTimerInterval = setInterval(() => {
+                timeLeft--;
+                if (timeLeft <= 0) {
+                    timeLeft = 60;
+                    generateDynamicQRCode(peerId);
+                    appendTerminal("🔄 [P2P QR]: Código QR actualizado por ciclo de 1 minuto.", "text-purple-300");
+                }
+                document.getElementById("qr-timer-badge").textContent = `Refresco QR: ${timeLeft}s`;
+            }, 1000);
         }
 
         function connectToP2PHost() {
@@ -570,18 +681,19 @@
             p2pConnection.on('data', (data) => {
                 if (data.type === 'FULL_WORKSPACE') {
                     projectFiles = data.files;
-                    localStorage.setItem("rgs_pro_plus_files_v5", JSON.stringify(projectFiles));
+                    localStorage.setItem("rgs_pro_plus_files_v6", JSON.stringify(projectFiles));
                     if (!projectFiles[currentFile]) {
                         currentFile = Object.keys(projectFiles)[0];
                     }
-                    editor.setValue(projectFiles[currentFile].content);
+                    if (!openTabs.includes(currentFile)) openTabs.push(currentFile);
+                    loadActiveFileContent();
                     renderIDE();
                     appendTerminal("📥 [P2P]: Workspace completo recibido y sincronizado.", "text-cyan-400");
                 } else if (data.type === 'FILE_UPDATE') {
                     if (projectFiles[data.filename]) {
                         projectFiles[data.filename].content = data.content;
-                        localStorage.setItem("rgs_pro_plus_files_v5", JSON.stringify(projectFiles));
-                        if (currentFile === data.filename) {
+                        localStorage.setItem("rgs_pro_plus_files_v6", JSON.stringify(projectFiles));
+                        if (currentFile === data.filename && !isMediaFile(currentFile)) {
                             editor.setValue(data.content);
                         }
                         renderIDE();
@@ -618,14 +730,17 @@
         }
         // ------------------------------------------
 
-        // Guardado nativo a archivo real si el navegador lo soporta
         async function saveFileNative() {
-            localStorage.setItem("rgs_pro_plus_files_v5", JSON.stringify(projectFiles));
+            localStorage.setItem("rgs_pro_plus_files_v6", JSON.stringify(projectFiles));
+            if (isMediaFile(currentFile)) {
+                alert("Los archivos multimedia se guardan automáticamente en el workspace local.");
+                return;
+            }
             if ('showSaveFilePicker' in window) {
                 try {
                     const handle = await window.showSaveFilePicker({
                         suggestedName: currentFile.split('/').pop(),
-                        types: [{ description: 'Código fuente', accept: {'text/*': ['.html', '.css', '.js', '.py', '.md', '.sb', '.sql']} }]
+                        types: [{ description: 'Código fuente', accept: {'text/*': ['.html', '.css', '.js', '.py', '.md', '.sb', '.sql', '.txt', '.json', '.xml', '.svg']} }]
                     });
                     const writable = await handle.createWritable();
                     await writable.write(editor.getValue());
@@ -633,9 +748,8 @@
                     document.getElementById("save-status").textContent = "Guardado en Archivo Nativo OK";
                     setTimeout(() => { document.getElementById("save-status").textContent = "Guardado Automático OK"; }, 2000);
                     return;
-                } catch(e) { console.log("File picker cancelado o no disponible"); }
+                } catch(e) { console.log("File picker cancelado"); }
             }
-            // Fallback de descarga directa
             let blob = new Blob([editor.getValue()], { type: 'text/plain' });
             let dl = document.createElement('a');
             dl.href = URL.createObjectURL(blob);
@@ -649,11 +763,12 @@
             if (!projectFiles[currentFile]) return;
             let newName = "copy_" + currentFile;
             projectFiles[newName] = { content: projectFiles[currentFile].content, mode: projectFiles[currentFile].mode };
+            if (!openTabs.includes(newName)) openTabs.push(newName);
+            selectFile(newName);
             renderIDE();
             alert(`Duplicado creado: ${newName}`);
         }
 
-        // Sincronización VS Code PC (Modals)
         function openVsCodeSyncModal() { document.getElementById("vscode-sync-modal").classList.remove("hidden"); }
         function closeVsCodeSyncModal() { document.getElementById("vscode-sync-modal").classList.add("hidden"); }
         function applyVsCodeSync() {
@@ -665,27 +780,50 @@
                     projectFiles = parsed;
                 }
             } catch(e) {
-                projectFiles[currentFile].content = txt;
-                editor.setValue(txt);
+                if (!isMediaFile(currentFile)) {
+                    projectFiles[currentFile].content = txt;
+                    editor.setValue(txt);
+                }
             }
-            localStorage.setItem("rgs_pro_plus_files_v5", JSON.stringify(projectFiles));
+            localStorage.setItem("rgs_pro_plus_files_v6", JSON.stringify(projectFiles));
             renderIDE();
             closeVsCodeSyncModal();
             appendTerminal("🔗 Sincronización con VS Code PC aplicada correctamente.", "text-green-400");
         }
 
-        // Abrir archivos locales desde File -> Abrir
+        // --- MANEJO DE ARCHIVOS Y CARPETAS CON FILTRADO ESTRICTO E IGNORACIÓN ---
         function handleFileOpen(event) {
             const files = event.target.files;
             for (let i = 0; i < files.length; i++) {
                 let f = files[i];
+                if (shouldIgnorePath(f.name)) continue;
+                
                 let reader = new FileReader();
-                reader.onload = function(e) {
-                    projectFiles[f.name] = { content: e.target.result, mode: getLanguageMode(f.name) };
-                    renderIDE();
-                    selectFile(f.name);
-                };
-                reader.readAsText(f);
+                if (f.type.startsWith('image/') || f.name.endsWith('.png') || f.name.endsWith('.jpg') || f.name.endsWith('.jpeg') || f.name.endsWith('.ico') || f.name.endsWith('.gif')) {
+                    reader.onload = function(e) {
+                        projectFiles[f.name] = { content: e.target.result, mode: 'media' };
+                        addTabIfNotExists(f.name);
+                        selectFile(f.name);
+                        renderIDE();
+                    };
+                    reader.readAsDataURL(f);
+                } else if (f.type.startsWith('audio/') || f.type.startsWith('video/') || f.name.endsWith('.mp3') || f.name.endsWith('.mp4')) {
+                    reader.onload = function(e) {
+                        projectFiles[f.name] = { content: e.target.result, mode: 'media' };
+                        addTabIfNotExists(f.name);
+                        selectFile(f.name);
+                        renderIDE();
+                    };
+                    reader.readAsDataURL(f);
+                } else {
+                    reader.onload = function(e) {
+                        projectFiles[f.name] = { content: e.target.result, mode: getLanguageMode(f.name) };
+                        addTabIfNotExists(f.name);
+                        selectFile(f.name);
+                        renderIDE();
+                    };
+                    reader.readAsText(f);
+                }
             }
         }
 
@@ -694,18 +832,43 @@
             for (let i = 0; i < files.length; i++) {
                 let f = files[i];
                 let path = f.webkitRelativePath || f.name;
+                
+                // Ignorar carpetas y archivos innecesarios como .git, node_modules, etc.
+                if (shouldIgnorePath(path)) continue;
+
                 let reader = new FileReader();
-                reader.onload = (function(filePath) {
-                    return function(e) {
-                        projectFiles[filePath] = { content: e.target.result, mode: getLanguageMode(filePath) };
-                        renderIDE();
-                    };
-                })(path);
-                reader.readAsText(f);
+                if (isMediaFile(path)) {
+                    reader.onload = (function(filePath) {
+                        return function(e) {
+                            projectFiles[filePath] = { content: e.target.result, mode: 'media' };
+                            renderIDE();
+                        };
+                    })(path);
+                    reader.readAsDataURL(f);
+                } else {
+                    reader.onload = (function(filePath) {
+                        return function(e) {
+                            projectFiles[filePath] = { content: e.target.result, mode: getLanguageMode(filePath) };
+                            renderIDE();
+                        };
+                    })(path);
+                    reader.readAsText(f);
+                }
             }
+            appendTerminal("📁 Workspace cargado. Archivos innecesarios y .git descartados correctamente.", "text-green-400");
         }
 
-        // Temas y Guías de Sangría
+        function shouldIgnorePath(path) {
+            if (path.includes('/.git/') || path.startsWith('.git/') || path.includes('/node_modules/') || path.includes('.DS_Store') || path.includes('Thumbs.db')) {
+                return true;
+            }
+            return false;
+        }
+
+        function isMediaFile(filename) {
+            return filename.match(/\.(png|jpg|jpeg|gif|ico|svg|mp3|mp4|wav|ogg)$/i);
+        }
+
         function changeEditorTheme(theme) {
             editor.setOption("theme", theme);
             localStorage.setItem("rgs_editor_theme", theme);
@@ -729,12 +892,27 @@
             document.getElementById("btn-explorer").className = "w-full h-10 flex items-center justify-center text-gray-400 hover:text-white transition";
             document.getElementById("btn-settings").className = "w-full h-10 flex items-center justify-center text-gray-400 hover:text-white transition";
 
+            let sidebar = document.getElementById("left-sidebar");
+            sidebar.classList.remove("hidden");
+
             if (view === 'explorer') {
                 document.getElementById("view-explorer").classList.remove("hidden");
                 document.getElementById("btn-explorer").className = "w-full h-10 flex items-center justify-center text-white border-l-2 border-vsc-accent bg-vsc-bg/40";
             } else if (view === 'settings') {
                 document.getElementById("view-settings").classList.remove("hidden");
                 document.getElementById("btn-settings").className = "w-full h-10 flex items-center justify-center text-white border-l-2 border-vsc-accent bg-vsc-bg/40";
+            }
+        }
+
+        function toggleSection(sectionId) {
+            const el = document.getElementById(sectionId);
+            const arrow = document.getElementById(sectionId.replace('-content', '-arrow'));
+            if (el.classList.contains('hidden')) {
+                el.classList.remove('hidden');
+                arrow.textContent = '▼';
+            } else {
+                el.classList.add('hidden');
+                arrow.textContent = '▶';
             }
         }
 
@@ -747,20 +925,23 @@
             let tree = buildTreeStructure(Object.keys(projectFiles));
             renderTreeRecursive(tree, treeEl, "");
 
-            for (let filename in projectFiles) {
-                if (filename.endsWith('/.keep')) continue;
-                const isSelected = filename === currentFile;
-                const tab = document.createElement("div");
-                tab.className = `px-3 h-full flex items-center space-x-2 text-xs text-white border-r border-vsc-border cursor-pointer shrink-0 ${isSelected ? 'bg-vsc-bg border-t-2 border-vsc-accent' : 'bg-vsc-sidebar text-gray-400'}`;
-                tab.innerHTML = `
-                    <span onclick="selectFile('${filename}')">${filename.split('/').pop()}</span>
-                    <button onclick="event.stopPropagation(); closeTab('${filename}')" class="hover:text-red-400 px-1">×</button>
-                `;
-                tabsEl.appendChild(tab);
-            }
+            // Renderizar SOLO las pestañas abiertas (Optimización estricta anti-lag)
+            openTabs.forEach(filename => {
+                if (projectFiles[filename]) {
+                    const isSelected = filename === currentFile;
+                    const tab = document.createElement("div");
+                    tab.className = `px-3 h-full flex items-center space-x-2 text-xs text-white border-r border-vsc-border cursor-pointer shrink-0 ${isSelected ? 'bg-vsc-bg border-t-2 border-vsc-accent' : 'bg-vsc-sidebar text-gray-400'}`;
+                    tab.innerHTML = `
+                        <span onclick="selectFile('${filename}')">${filename.split('/').pop()}</span>
+                        <button onclick="event.stopPropagation(); closeTab('${filename}')" class="hover:text-red-400 px-1">×</button>
+                    `;
+                    tabsEl.appendChild(tab);
+                }
+            });
 
             document.getElementById("file-lang-badge").textContent = currentFile.split('.').pop().toUpperCase();
             runLinter();
+            updateOutlineAndTimeline();
             if (livePreviewActive) updateLivePreview();
         }
 
@@ -824,12 +1005,20 @@
 
         function toggleFolderCollapse(folderPath) {
             collapsedFolders[folderPath] = !collapsedFolders[folderPath];
-            localStorage.setItem("rgs_collapsed_folders_v5", JSON.stringify(collapsedFolders));
+            localStorage.setItem("rgs_collapsed_folders_v6", JSON.stringify(collapsedFolders));
             renderIDE();
         }
 
         function addContextHandlers(el, path, isFolder = false) {
-            el.onclick = (e) => { if (!isFolder) selectFile(path); };
+            el.onclick = (e) => { 
+                if (!isFolder) {
+                    addTabIfNotExists(path);
+                    selectFile(path);
+                    if (window.innerWidth <= 768) {
+                        document.getElementById("left-sidebar").classList.add("hidden");
+                    }
+                }
+            };
             el.oncontextmenu = (e) => {
                 e.preventDefault();
                 showContextMenu(e.clientX, e.clientY, path);
@@ -843,13 +1032,22 @@
             el.ontouchend = () => { clearTimeout(longPressTimer); };
         }
 
+        function addTabIfNotExists(filename) {
+            if (!openTabs.includes(filename)) {
+                openTabs.push(filename);
+                localStorage.setItem("rgs_open_tabs_v6", JSON.stringify(openTabs));
+            }
+        }
+
         function getFileSvgIcon(filename) {
             if (filename.endsWith('.html')) return '<svg class="w-4 h-4 text-orange-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>';
-            if (filename.endsWith('.css')) return '<svg class="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 73.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path></svg>';
+            if (filename.endsWith('.css')) return '<svg class="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343"></path></svg>';
             if (filename.endsWith('.js')) return '<svg class="w-4 h-4 text-yellow-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>';
-            if (filename.endsWith('.py')) return '<svg class="w-4 h-4 text-green-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"></path></svg>';
+            if (filename.endsWith('.py')) return '<svg class="w-4 h-4 text-green-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017"></path></svg>';
             if (filename.endsWith('.md')) return '<svg class="w-4 h-4 text-blue-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>';
-            if (filename.endsWith('.sb') || filename.endsWith('.sql')) return '<svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>';
+            if (filename.endsWith('.png') || filename.endsWith('.jpg') || filename.endsWith('.jpeg') || filename.endsWith('.ico') || filename.endsWith('.svg')) return '<svg class="w-4 h-4 text-purple-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>';
+            if (filename.endsWith('.mp3') || filename.endsWith('.mp4')) return '<svg class="w-4 h-4 text-pink-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>';
+            if (filename.endsWith('.bat') || filename.endsWith('.json') || filename.endsWith('.env.example') || filename.endsWith('.gitignore') || filename.endsWith('.webmanifest') || filename.endsWith('.nojekyll') || filename.endsWith('.txt')) return '<svg class="w-4 h-4 text-cyan-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>';
             return '<svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>';
         }
 
@@ -860,25 +1058,66 @@
             if (filename.endsWith('.py')) return 'python';
             if (filename.endsWith('.md')) return 'markdown';
             if (filename.endsWith('.sb') || filename.endsWith('.sql')) return 'sql';
+            if (filename.endsWith('.json') || filename.endsWith('.webmanifest')) return 'javascript';
             return 'text/plain';
         }
 
         function selectFile(filename) {
             if (!projectFiles[filename]) return;
             currentFile = filename;
-            editor.setValue(projectFiles[currentFile].content);
-            editor.setOption("mode", getLanguageMode(filename));
+            localStorage.setItem("rgs_current_file_v6", currentFile);
+            addTabIfNotExists(filename);
+            loadActiveFileContent();
             renderIDE();
         }
 
-        function closeTab(filename) {
-            let keys = Object.keys(projectFiles).filter(f => !f.endsWith('/.keep'));
-            if (keys.length <= 1) return;
-            if (currentFile === filename) {
-                let idx = keys.indexOf(filename);
-                currentFile = keys[idx > 0 ? idx - 1 : 1];
+        function loadActiveFileContent() {
+            const mediaViewer = document.getElementById("media-viewer");
+            const codeEditorEl = document.querySelector(".CodeMirror");
+
+            if (isMediaFile(currentFile)) {
+                codeEditorEl.style.display = "none";
+                mediaViewer.classList.remove("hidden");
+                let dataUrl = projectFiles[currentFile].content;
+
+                if (currentFile.match(/\.(png|jpg|jpeg|gif|ico|svg)$/i)) {
+                    mediaViewer.innerHTML = `
+                        <div class="text-center space-y-3">
+                            <p class="text-gray-400 font-bold">${currentFile}</p>
+                            <img src="${dataUrl}" class="max-h-96 max-w-full object-contain mx-auto rounded border border-vsc-border shadow-lg bg-black/40">
+                        </div>`;
+                } else if (currentFile.match(/\.(mp3|wav|ogg)$/i)) {
+                    mediaViewer.innerHTML = `
+                        <div class="text-center space-y-3">
+                            <p class="text-gray-400 font-bold">${currentFile}</p>
+                            <audio controls src="${dataUrl}" class="mx-auto"></audio>
+                        </div>`;
+                } else if (currentFile.match(/\.(mp4|webm)$/i)) {
+                    mediaViewer.innerHTML = `
+                        <div class="text-center space-y-3">
+                            <p class="text-gray-400 font-bold">${currentFile}</p>
+                            <video controls src="${dataUrl}" class="max-h-96 max-w-full mx-auto rounded border border-vsc-border"></video>
+                        </div>`;
+                }
+            } else {
+                mediaViewer.classList.add("hidden");
+                codeEditorEl.style.display = "block";
                 editor.setValue(projectFiles[currentFile].content);
                 editor.setOption("mode", getLanguageMode(currentFile));
+                editor.refresh();
+            }
+        }
+
+        function closeTab(filename) {
+            openTabs = openTabs.filter(f => f !== filename);
+            localStorage.setItem("rgs_open_tabs_v6", JSON.stringify(openTabs));
+            if (openTabs.length === 0) {
+                let firstValid = Object.keys(projectFiles).find(f => !f.endsWith('/.keep'));
+                if (firstValid) openTabs.push(firstValid);
+            }
+            if (currentFile === filename && openTabs.length > 0) {
+                currentFile = openTabs[openTabs.length - 1];
+                loadActiveFileContent();
             }
             renderIDE();
         }
@@ -942,12 +1181,11 @@
             } else {
                 if (projectFiles[val]) { alert("El archivo ya existe"); return; }
                 projectFiles[val] = { content: val.endsWith('.md') ? "# " + val : `// ${val}\n`, mode: getLanguageMode(val) };
-                currentFile = val;
-                editor.setValue(projectFiles[currentFile].content);
-                editor.setOption("mode", getLanguageMode(currentFile));
+                addTabIfNotExists(val);
+                selectFile(val);
             }
 
-            localStorage.setItem("rgs_pro_plus_files_v5", JSON.stringify(projectFiles));
+            localStorage.setItem("rgs_pro_plus_files_v6", JSON.stringify(projectFiles));
             closeModal();
             renderIDE();
         }
@@ -979,7 +1217,8 @@
                     projectFiles[newName.trim()] = projectFiles[contextTargetFile];
                     delete projectFiles[contextTargetFile];
                     if (currentFile === contextTargetFile) currentFile = newName.trim();
-                    localStorage.setItem("rgs_pro_plus_files_v5", JSON.stringify(projectFiles));
+                    openTabs = openTabs.map(t => t === contextTargetFile ? newName.trim() : t);
+                    localStorage.setItem("rgs_pro_plus_files_v6", JSON.stringify(projectFiles));
                     renderIDE();
                 }
             } else if (action === 'copy') {
@@ -990,7 +1229,8 @@
                 let targetDir = contextTargetFile.includes('/') ? contextTargetFile.substring(0, contextTargetFile.lastIndexOf('/') + 1) : '';
                 let newName = targetDir + 'copy_of_' + clipboardFileContent.path.split('/').pop();
                 projectFiles[newName] = { content: clipboardFileContent.content, mode: getLanguageMode(newName) };
-                localStorage.setItem("rgs_pro_plus_files_v5", JSON.stringify(projectFiles));
+                addTabIfNotExists(newName);
+                localStorage.setItem("rgs_pro_plus_files_v6", JSON.stringify(projectFiles));
                 renderIDE();
             } else if (action === 'export') {
                 let code = projectFiles[contextTargetFile].content;
@@ -1002,13 +1242,14 @@
             } else if (action === 'delete') {
                 if (confirm(`¿Eliminar ${contextTargetFile}?`)) {
                     delete projectFiles[contextTargetFile];
+                    openTabs = openTabs.filter(t => t !== contextTargetFile);
                     let keys = Object.keys(projectFiles).filter(f => !f.endsWith('/.keep'));
-                    if (keys.length > 0 && currentFile === contextTargetFile) {
-                        currentFile = keys[0];
-                        editor.setValue(projectFiles[currentFile].content);
-                        editor.setOption("mode", getLanguageMode(currentFile));
+                    if (openTabs.length === 0 && keys.length > 0) openTabs.push(keys[0]);
+                    if (currentFile === contextTargetFile && openTabs.length > 0) {
+                        currentFile = openTabs[0];
+                        loadActiveFileContent();
                     }
-                    localStorage.setItem("rgs_pro_plus_files_v5", JSON.stringify(projectFiles));
+                    localStorage.setItem("rgs_pro_plus_files_v6", JSON.stringify(projectFiles));
                     renderIDE();
                 }
             }
@@ -1020,7 +1261,7 @@
                 html = projectFiles[currentFile].content;
             } else {
                 let indexFile = Object.keys(projectFiles).find(f => f.endsWith('index.html')) || Object.keys(projectFiles)[0];
-                html = projectFiles[indexFile].content;
+                html = projectFiles[indexFile] ? projectFiles[indexFile].content : "<h1>No hay archivo HTML ejecutable</h1>";
             }
 
             for (let filename in projectFiles) {
@@ -1062,6 +1303,10 @@
 
         function updateLivePreview() {
             const contentEl = document.getElementById("live-preview-content");
+            if (isMediaFile(currentFile)) {
+                contentEl.innerHTML = `<p class="text-gray-500">Vista previa no disponible para archivos multimedia.</p>`;
+                return;
+            }
             let code = editor.getValue();
             if (currentFile.endsWith('.md')) {
                 contentEl.className = "flex-1 p-4 overflow-y-auto bg-white text-black text-sm block";
@@ -1079,29 +1324,52 @@
             }
         }
 
-        function runPythonCode(code) {
-            appendTerminal("🐍 [Python Engine]:", "text-yellow-300");
-            try {
-                let lines = code.split('\n');
-                lines.forEach(line => {
-                    let trimmed = line.trim();
-                    if (trimmed.startsWith('print(')) {
-                        let content = trimmed.substring(6, trimmed.length - 1);
-                        if (content.startsWith("f'") || content.startsWith('f"')) {
-                            content = content.slice(2, -1).replace(/\{(.*?)\}/g, (_, g) => eval(g));
-                        } else {
-                            content = eval(content);
-                        }
-                        appendTerminal(content, "text-green-400");
-                    }
-                });
-                appendTerminal(">>> Proceso finalizado.", "text-gray-500");
-            } catch(err) {
-                appendTerminal(`Error Python: ${err.message}`, "text-red-400");
+        function updateOutlineAndTimeline() {
+            const outlineEl = document.getElementById("outline-content");
+            const timelineEl = document.getElementById("timeline-content");
+            
+            if (isMediaFile(currentFile)) {
+                outlineEl.innerHTML = `<p class="text-gray-500 italic">Archivo multimedia binario</p>`;
+                return;
             }
+
+            let code = editor.getValue();
+            let symbols = [];
+            
+            if (currentFile.endsWith('.js') || currentFile.endsWith('.html')) {
+                let funcMatches = code.match(/function\s+([a-zA-Z0-9_$]+)/g) || [];
+                funcMatches.forEach(f => symbols.push({ type: 'fun', name: f }));
+                let constMatches = code.match(/(const|let|var)\s+([a-zA-Z0-9_$]+)/g) || [];
+                constMatches.forEach(c => symbols.push({ type: 'var', name: c }));
+            } else if (currentFile.endsWith('.py')) {
+                let defMatches = code.match(/def\s+([a-zA-Z0-9_]+)/g) || [];
+                defMatches.forEach(d => symbols.push({ type: 'py', name: d }));
+            } else if (currentFile.endsWith('.md')) {
+                let hMatches = code.match(/#+\s+.+/g) || [];
+                hMatches.forEach(h => symbols.push({ type: 'md', name: h }));
+            }
+
+            if (symbols.length === 0) {
+                outlineEl.innerHTML = `<p class="text-gray-500 italic">Sin símbolos detectados</p>`;
+            } else {
+                outlineEl.innerHTML = "";
+                symbols.slice(0, 10).forEach(sym => {
+                    let div = document.createElement("div");
+                    div.className = "truncate text-blue-300 hover:bg-vsc-active px-1 py-0.5 rounded cursor-pointer";
+                    div.textContent = sym.name;
+                    outlineEl.appendChild(div);
+                });
+            }
+
+            let now = new Date().toLocaleTimeString();
+            timelineEl.innerHTML = `
+                <div class="text-gray-300 flex justify-between"><span>[${now}]</span> <span class="text-green-400">Guardado OK</span></div>
+                <div class="text-gray-400">Archivo: ${currentFile}</div>
+            `;
         }
 
         function runLinter() {
+            if (isMediaFile(currentFile)) return;
             let code = editor.getValue();
             let openBraces = (code.match(/\{/g) || []).length;
             let closeBraces = (code.match(/\}/g) || []).length;
@@ -1117,7 +1385,6 @@
             }
         }
 
-        // Terminal y Comandos
         function handleTerminalInput(e) {
             if (e.target.value === '/') {
                 showTerminalHelp();
@@ -1129,7 +1396,7 @@
                 <div class="bg-[#252526] p-2 rounded border border-vsc-border my-1 space-y-1">
                     <p class="font-bold text-yellow-400">⚡ Comandos RGS IDE P2P Disponibles:</p>
                     <p><span class="text-blue-300 font-bold">/help</span> -> Muestra esta ayuda de comandos.</p>
-                    <p><span class="text-blue-300 font-bold">/p2p</span> -> Abre el modal de sincronización WebRTC.</p>
+                    <p><span class="text-blue-300 font-bold">/p2p</span> -> Abre el modal de sincronización WebRTC y QR.</p>
                     <p><span class="text-blue-300 font-bold">/run</span> -> Ejecuta el archivo activo actual.</p>
                     <p><span class="text-blue-300 font-bold">/preview</span> -> Abre previsualización web real.</p>
                     <p><span class="text-blue-300 font-bold">/list</span> -> Lista todos los archivos del workspace.</p>
@@ -1154,8 +1421,7 @@
             } else if (cmd === '/preview') {
                 runProject();
             } else if (cmd === '/run') {
-                if (currentFile.endsWith('.py')) runPythonCode(editor.getValue());
-                else runProject();
+                runProject();
             } else if (cmd === '/clear') {
                 clearTerminal();
             } else if (cmd === '/list') {
@@ -1185,7 +1451,6 @@
             document.getElementById("terminal-output").innerHTML = '<p class="text-gray-500">// Terminal limpia.</p>';
         }
 
-        // Paneles Dimensionales (Resizable System)
         let activeResizeTarget = null;
         let startX = 0, startY = 0, startWidth = 0, startHeight = 0;
 
@@ -1249,9 +1514,20 @@
         }
 
         function changeFontSize(size) { document.querySelector(".CodeMirror").style.fontSize = size; editor.refresh(); }
-        function toggleSidebar() { document.getElementById("left-sidebar").classList.toggle("hidden"); }
-        function toggleTerminal() { document.getElementById("terminal-container").classList.toggle("hidden"); }
+        
+        function toggleSidebar() { 
+            const sidebar = document.getElementById("left-sidebar");
+            sidebar.classList.toggle("hidden"); 
+            editor.refresh();
+        }
+
+        function toggleTerminal() { 
+            document.getElementById("terminal-container").classList.toggle("hidden"); 
+            editor.refresh();
+        }
+
         function resetStorage() { if (confirm("¿Restaurar valores de fábrica?")) { localStorage.clear(); location.reload(); } }
+        
         function exportProjectZip() {
             let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(projectFiles, null, 2));
             let dl = document.createElement('a');
