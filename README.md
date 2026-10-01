@@ -6,34 +6,34 @@
 
 # 🚀 RGS.Code
 
-> Un entorno de desarrollo web moderno, rápido y minimalista inspirado en VS Code, equipado con herramientas avanzadas y consola P2P integrada. Desarrollado por **RGS Labs**.
+> A modern, fast, and minimalist web development environment inspired by VS Code, equipped with advanced tools and an integrated P2P console. Developed by **RGS Labs**.
 
 ---
 
-## ✨ Características Principales
-* **Interfaz Inspirada en VS Code:** Una experiencia de edición familiar, oscura y optimizada para la productividad.
-* **Terminal P2P Integrada:** Conexión y consola en tiempo real para comunicación directa entre pares.
-* **Diseño Ligero y Web-First:** Funciona directamente desde el navegador gracias a GitHub Pages.
-* **Arquitectura Limpia:** Construido con tecnologías web modernas y optimizado para desarrolladores.
+## ✨ Key Features
+* **VS Code-Inspired Interface:** A familiar, dark-themed editing experience optimized for productivity.
+* **Integrated P2P Terminal:** Real-time connection and console for direct peer-to-peer communication.
+* **Lightweight, Web-First Design:** Runs directly in the browser via GitHub Pages.
+* **Clean Architecture:** Built with modern web technologies and optimized for developers.
 
 ---
 
-## 🛠️ Tecnologías Utilizadas
+## 🛠️ Technologies Used
 * **HTML5 / CSS3 / JavaScript (ES6+)**
-* **WebSockets / WebRTC** (para la infraestructura P2P)
-* **GitHub Pages** (Hosting y despliegue)
+* **WebSockets / WebRTC** (for P2P infrastructure)
+* **GitHub Pages** (Hosting and deployment)
 
 ---
 
-## 🚀 Uso en Vivo
-Puedes probar la aplicación directamente en la web a través de su despliegue oficial:
-👉 [Enlace a RGS.Code en GitHub Pages](https://tu-usuario.github.io/rgs-code/)
+## 🚀 Live Demo
+You can try the application directly on the web via its official deployment:
+👉 [Link to RGS.Code on GitHub Pages](https://tu-usuario.github.io/rgs-code/)
 
 ---
 
-## 📄 Licencia y Derechos de Autor
-© 2026 **RGS Labs**. Todos los derechos reservados. 
-Este software es una obra propietaria. Queda prohibida su reproducción, distribución o modificación sin la autorización expresa de los creadores.
+## 📄 License and Copyright
+© 2026 **RGS Labs**. All rights reserved. 
+This software is proprietary. Reproduction, distribution, or modification without the express authorization of the creators is prohibited.
 
 ---
-*Construido con pasión por el equipo de RGS Labs.*
+*Built with passion by the RGS Labs team.*
